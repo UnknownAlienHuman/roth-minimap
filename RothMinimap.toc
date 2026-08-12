@@ -1,0 +1,15 @@
+## Interface: 120001, 120005
+## Title: Roth Minimap
+## Notes: Lightweight minimap addon: square minimap, skins (Diablo fire), ping toast, wheel zoom + auto zoom-out, HUD overlay, minimap button bag.
+## Author: Neomorph (Roth UI Project)
+## Version: 0.3.11.29
+## SavedVariables: RothMinimapDB
+## AddonCompartmentFunc: RothMinimap_OpenConfig
+
+RothMinimap.lua
+modules\Skin.lua
+modules\Ping.lua
+modules\Zoom.lua
+modules\ButtonBag.lua
+modules\AddonCompartment.lua
+Options.lua
