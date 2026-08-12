@@ -21,4 +21,4 @@ ButtonBag code and performance work is largely marked complete in [`todo.md`](to
 
 ## License
 
-No license declaration was inferred from the current tree.
+Licensed under the [MIT License](LICENSE).
