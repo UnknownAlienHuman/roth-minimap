@@ -11,3 +11,4 @@
 | `modules/AddonCompartment.lua` | Addon compartment integration |
 | `Options.lua` | Settings and slash-command entrypoints |
 
+Detailed load/event/state routing is in [`AGENT_GUIDE.md`](AGENT_GUIDE.md).
