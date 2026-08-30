@@ -1,125 +1,94 @@
--- Roth Minimap - Ping notification
---
--- Listens for MINIMAP_PING and shows a small toast under the minimap.
--- Optional sound is intentionally neutral (no chat/whisper alarm).
+-- RothMinimap ping notification for Retail 12.1.
+-- The MINIMAP_PING unit payload is intentionally not inspected or named.
 
-local ADDON, ns = ...
-
+local ADDON_NAME, ns = ...
 ns.ping = ns.ping or {}
 local M = ns.ping
+local U = ns.util
 
-local toast, text
-local ag, fadeIn, hold, fadeOut
+local toast
+local text
+local animation
+local hold
+local registered = false
 
-local function ensureToast()
-  if toast then return end
-
+local function EnsureToast()
+  if toast then return true end
+  if InCombatLockdown and InCombatLockdown() then return false end
   toast = CreateFrame("Frame", "RothMinimapPingToast", UIParent, "BackdropTemplate")
-  toast:SetSize(220, 42)
+  toast:SetSize(190, 36)
   toast:SetFrameStrata("HIGH")
-  toast:SetFrameLevel(300)
   toast:SetPoint("TOP", Minimap, "BOTTOM", 0, -8)
-
   toast:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8x8",
     edgeFile = "Interface\\Buttons\\WHITE8x8",
     edgeSize = 1,
-    insets = { left = 1, right = 1, top = 1, bottom = 1 },
   })
-  toast:SetBackdropColor(0, 0, 0, 0.60)
+  toast:SetBackdropColor(0, 0, 0, 0.65)
   toast:SetBackdropBorderColor(1, 1, 1, 0.15)
   toast:Hide()
 
   text = toast:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  text:SetPoint("CENTER", toast, "CENTER", 0, 0)
-  text:SetJustifyH("CENTER")
-  text:SetText("")
+  text:SetPoint("CENTER")
+  text:SetText("Map ping received")
 
-  ag = toast:CreateAnimationGroup()
-  fadeIn = ag:CreateAnimation("Alpha")
+  animation = toast:CreateAnimationGroup()
+  local fadeIn = animation:CreateAnimation("Alpha")
   fadeIn:SetOrder(1)
   fadeIn:SetFromAlpha(0)
   fadeIn:SetToAlpha(1)
   fadeIn:SetDuration(0.10)
-
-  hold = ag:CreateAnimation("Alpha")
+  hold = animation:CreateAnimation("Alpha")
   hold:SetOrder(2)
   hold:SetFromAlpha(1)
   hold:SetToAlpha(1)
-  hold:SetDuration(2.50)
-
-  fadeOut = ag:CreateAnimation("Alpha")
+  hold:SetDuration(3)
+  local fadeOut = animation:CreateAnimation("Alpha")
   fadeOut:SetOrder(3)
   fadeOut:SetFromAlpha(1)
   fadeOut:SetToAlpha(0)
-  fadeOut:SetDuration(0.35)
-
-  ag:SetScript("OnFinished", function()
-    toast:Hide()
-  end)
+  fadeOut:SetDuration(0.30)
+  animation:SetScript("OnFinished", function() toast:Hide() end)
+  return true
 end
 
-local function showToast(msg, dur)
-  ensureToast()
-  text:SetText(msg)
-  toast:Show()
-  ag:Stop()
-  hold:SetDuration(dur or 3.0)
-  ag:Play()
-end
-
-local function playPingSound()
+local function PlaySoundSafe()
   if not (PlaySound and SOUNDKIT) then return end
-  -- Avoid 'tell message' style alarm; prefer neutral UI ping if available.
-  local kit = SOUNDKIT.MAP_PING or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or SOUNDKIT.IG_MAINMENU_OPEN
-  if kit then
-    pcall(PlaySound, kit, "Master")
-  end
+  local sound = SOUNDKIT.MAP_PING or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON
+  if sound then pcall(PlaySound, sound, "Master") end
 end
 
-local function onPing(_, unit)
+local function OnPing()
   local db = ns.db and ns.db.ping
-  if not (db and db.enabled) then return end
-
-  local name = UnitName(unit) or "?"
-  local msg = name .. " ping"
+  if not (ns.db and ns.db.enabled and db and db.enabled) then return end
 
   if db.where == "chat" then
-    DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffPing:|r " .. msg)
-  else
-    showToast(msg, db.duration)
+    if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffRothMinimap:|r map ping received") end
+  elseif EnsureToast() then
+    hold:SetDuration(U.clamp(U.SafeNumber(db.duration) or 3, 1, 10))
+    animation:Stop()
+    toast:Show()
+    animation:Play()
   end
 
-  if ns.skin and ns.skin.Pulse then
-    ns.skin:Pulse("ping")
-  end
-
-  if db.sound then
-    playPingSound()
-  end
+  if ns.skin and type(ns.skin.Pulse) == "function" then ns.skin:Pulse("ping") end
+  if db.sound then PlaySoundSafe() end
 end
 
 function M:Apply()
-  local db = ns.db and ns.db.ping
-  if not db then return end
-
-  if db.enabled then
-    if not self._registered then
-      ns.RegisterEvent("MINIMAP_PING", onPing)
-      self._registered = true
-    end
-  else
-    if self._registered then
-      ns.UnregisterEvent("MINIMAP_PING", onPing)
-      self._registered = false
-    end
+  local enabled = ns.db and ns.db.enabled and ns.db.ping and ns.db.ping.enabled
+  if enabled and not registered then
+    ns.RegisterEvent("MINIMAP_PING", OnPing)
+    registered = true
+  elseif not enabled and registered then
+    ns.UnregisterEvent("MINIMAP_PING", OnPing)
+    registered = false
   end
+  if not enabled and toast then toast:Hide() end
 end
 
 function M:Disable()
-  if self._registered then
-    ns.UnregisterEvent("MINIMAP_PING", onPing)
-    self._registered = false
-  end
+  if registered then ns.UnregisterEvent("MINIMAP_PING", OnPing) end
+  registered = false
   if toast then toast:Hide() end
 end
