@@ -1,98 +1,63 @@
--- Roth Minimap - Zoom module
---
--- Features:
---   * Mousewheel zoom (no taint; uses HookScript)
---   * Optional auto zoom-out after delay
---   * Two reset modes: smooth (step) or snap (to 0)
---
--- Performance:
---   * Only schedules a single C_Timer.After per wheel action.
+-- RothMinimap wheel zoom for Retail 12.1.
+-- Uses only Minimap's public zoom methods and one cancellable reset timer.
 
-local ADDON, ns = ...
-
+local ADDON_NAME, ns = ...
 ns.zoom = ns.zoom or {}
 local M = ns.zoom
+local U = ns.util
 
-local resetTimer = nil
 local hooked = false
 local enabled = false
+local resetTimer
 
-local function cancelReset()
-  if resetTimer and resetTimer.Cancel then
-    resetTimer:Cancel()
-  end
+local function CancelReset()
+  if resetTimer and type(resetTimer.Cancel) == "function" then resetTimer:Cancel() end
   resetTimer = nil
 end
 
-local function resetZoom(mode)
-  cancelReset()
-  if not enabled then return end
-  if InCombatLockdown() then return end
-
-  if mode == "snap" then
-    Minimap:SetZoom(0)
-    return
-  end
-
-  -- Smooth: step down over a few ticks
-  local z = Minimap:GetZoom() or 0
-  if z <= 0 then return end
-  local step = 1
-  local function tick()
-    if not enabled then return end
-    if InCombatLockdown() then return end
-    z = (Minimap:GetZoom() or 0) - step
-    if z <= 0 then
-      Minimap:SetZoom(0)
-      return
-    end
-    Minimap:SetZoom(z)
-    C_Timer.After(0.08, tick)
-  end
-  tick()
+local function SetZoom(value)
+  if not U.CanUseObject(_G.Minimap) then return false end
+  value = U.SafeNumber(value)
+  if not value then return false end
+  if value < 0 then value = 0 elseif value > 5 then value = 5 end
+  return U.SafeCall(Minimap, "SetZoom", value)
 end
 
-local function scheduleReset()
-  cancelReset()
+local function ScheduleReset()
+  CancelReset()
   local db = ns.db and ns.db.zoom
-  if not (db and db.autoReset) then return end
-  local delay = ns.util.clamp(tonumber(db.delay) or 3, 1, 10)
-
+  if not (db and db.autoReset and C_Timer and type(C_Timer.NewTimer) == "function") then return end
+  local delay = U.clamp(U.SafeNumber(db.delay) or 3, 1, 10)
   resetTimer = C_Timer.NewTimer(delay, function()
-    local mode = (db.mode == "snap") and "snap" or "smooth"
-    resetZoom(mode)
+    resetTimer = nil
+    if enabled and not InCombatLockdown() then SetZoom(0) end
   end)
 end
 
-local function onWheel(_, delta)
-  if not enabled then return end
-  if InCombatLockdown() then return end
-
-  if delta > 0 then
-    Minimap_ZoomIn()
-  else
-    Minimap_ZoomOut()
-  end
-
-  scheduleReset()
+local function OnWheel(_, delta)
+  if not enabled or InCombatLockdown() then return end
+  delta = U.SafeNumber(delta)
+  if not delta then return end
+  local zoom = U.SafeNumber(U.SafeGet(Minimap, "GetZoom")) or 0
+  if delta > 0 then zoom = zoom + 1 else zoom = zoom - 1 end
+  SetZoom(zoom)
+  ScheduleReset()
 end
 
 function M:Apply()
-  local db = ns.db and ns.db.zoom
-  enabled = (ns.db and ns.db.enabled and db and db.mousewheel) and true or false
-
+  enabled = ns.db and ns.db.enabled and ns.db.zoom and ns.db.zoom.mousewheel or false
   if enabled then
-    Minimap:EnableMouseWheel(true)
-    if not hooked then
+    U.SafeCall(Minimap, "EnableMouseWheel", true)
+    if not hooked and U.CanUseObject(Minimap) and type(Minimap.HookScript) == "function" then
+      Minimap:HookScript("OnMouseWheel", OnWheel)
       hooked = true
-      Minimap:HookScript("OnMouseWheel", onWheel)
     end
   else
-    cancelReset()
+    CancelReset()
   end
 end
 
 function M:Disable()
   enabled = false
-  cancelReset()
+  CancelReset()
 end
