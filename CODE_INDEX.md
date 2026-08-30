@@ -1,14 +1,13 @@
 # Roth Minimap code index
 
-| File | Responsibility |
+| Path | Responsibility |
 |---|---|
-| `RothMinimap.toc` | Metadata, SavedVariables and load order |
-| `RothMinimap.lua` | Namespace, DB, minimap geometry, lifecycle and common helpers |
-| `modules/Skin.lua` | Square mask, border, runes, glow and fire layers |
-| `modules/Ping.lua` | Ping toast, sound and skin pulse |
-| `modules/Zoom.lua` | Mouse-wheel zoom and auto reset |
-| `modules/ButtonBag.lua` | Button discovery, stash/restore and bag UI |
-| `modules/AddonCompartment.lua` | Addon compartment integration |
-| `Options.lua` | Settings and slash-command entrypoints |
+| `RothMinimap.toc` | Retail 12.1 metadata and definitive safe load order |
+| `RothMinimap.lua` | Schema v4 migration/sanitize, accessibility/object gates, event routing, mask, decorative alpha restore, Edit Mode callbacks, combat-deferred apply, slash/reset/status |
+| `modules/Skin.lua` | Addon-owned border, runes, visible-only fire ticker, pulse and vignette |
+| `modules/Ping.lua` | Opaque MINIMAP_PING fixed-text toast/chat notice and optional sound |
+| `modules/Zoom.lua` | Public wheel zoom and one cancellable reset timer |
+| `Options.lua` | Current vertical Blizzard Settings category |
+| `tests/test_ownership_12_1.lua` | Static regression for no foreign-widget collection/reparent/reanchor/method override or ping-unit lookup |
 
-Detailed load/event/state routing is in [`AGENT_GUIDE.md`](AGENT_GUIDE.md).
+Removed: `modules/ButtonBag.lua` and `modules/AddonCompartment.lua`. Blizzard/Edit Mode owns geometry and functional minimap widgets.
