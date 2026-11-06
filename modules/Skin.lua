@@ -89,7 +89,10 @@ local function StartFireTicker()
   end
   if not C_Timer or type(C_Timer.NewTicker) ~= "function" then return end
 
-  local fps = U.clamp(U.SafeNumber(db.fireFPS) or 8, 1, 20)
+  local configuredFPS = inCombat and db.fireCombatFPS or db.fireIdleFPS
+  local fallbackFPS = inCombat and 8 or 2
+  local maximumFPS = inCombat and 20 or 8
+  local fps = U.clamp(U.SafeNumber(configuredFPS) or fallbackFPS, 1, maximumFPS)
   local interval = 1 / fps
   if fireTicker and fireInterval == interval then return end
 

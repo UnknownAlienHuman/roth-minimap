@@ -31,7 +31,8 @@ local runtime = table.concat({ core, skin, ping, zoom, options }, "\n")
 
 assertPresent(toc, "## Interface: 120105", "Retail 12.1.5 interface")
 assertPresent(toc, "## LoadSavedVariablesFirst: 1", "file-scope DB readiness")
-assertPresent(toc, "## Version: 0.4.3", "release version")
+assertPresent(toc, "## Version: 0.4.4", "release version")
+assertPresent(toc, "## X-Source-Reviewed-Build: 12.1.5.70783", "reviewed live source")
 assertAbsent(toc, "ButtonBag", "button collector must not load")
 assertAbsent(toc, "AddonCompartment.lua", "compartment diagnostics must not load")
 
@@ -52,7 +53,7 @@ for _, token in ipairs({
   assertAbsent(runtime, token, "foreign-widget ownership regression")
 end
 
-assertPresent(core, "ns.DB_VERSION = 6", "schema contract")
+assertPresent(core, "ns.DB_VERSION = 7", "schema contract")
 assertPresent(core, "MigrateLegacyDB", "pre-0.4 migration")
 assertPresent(core, "ReplaceContents(old, migrated)", "root identity preservation")
 assertPresent(core, "ReplaceContents(ns.db, fresh)", "Settings table identity preservation")
@@ -62,6 +63,9 @@ assertPresent(core, "nativePresentationReason", "native fallback state")
 assertPresent(core, "not ns.UsesNativePresentation()", "mask/art fallback gate")
 assertPresent(core, "borderColor = { 0.25, 0.22, 0.20, 1 }", "dark Diablo border default")
 assertPresent(core, "vignetteAlpha = 0.22", "subtle vignette default")
+assertPresent(core, "fireIdleFPS = 2", "low idle fire cadence")
+assertPresent(core, "fireCombatFPS = 8", "combat fire cadence")
+assertPresent(core, "db.skin.fireFPS = nil", "unified cadence retirement")
 assertPresent(core, "EditMode.Exit", "Edit Mode geometry refresh")
 assertPresent(core, "C_Timer.NewTimer(0", "coalesced refresh")
 assertPresent(core, "_G.MinimapCompassTexture", "exact compass decoration")
@@ -101,6 +105,9 @@ assertAbsent(zoom, "C_Timer.After", "uncancellable zoom timer must remain absent
 assertPresent(options, "ROTH_MINIMAP_PING_WHERE", "ping destination setting")
 assertPresent(options, "Settings.CreateDropdown", "ping destination control")
 assertPresent(options, "Vignette alpha\", 0.22", "new-install visual tuning")
+assertPresent(options, "ROTH_MINIMAP_FIRE_IDLE_FPS", "idle fire cadence setting")
+assertPresent(options, "ROTH_MINIMAP_FIRE_COMBAT_FPS", "combat fire cadence setting")
+assertAbsent(options, "ROTH_MINIMAP_FIRE_FPS\"", "unified fire cadence setting retired")
 assertPresent(options, "Hybrid Minimap", "native fallback explanation")
 assertPresent(options, "if refreshing then return end", "reset callback suppression")
 assertPresent(options, "Settings.NotifyUpdate", "reset refreshes registered settings")
@@ -111,7 +118,7 @@ for name, document in pairs({
   ARCHITECTURE = architecture,
   CHANGELOG = changelog,
 }) do
-  assertPresent(document, "0.4.3", name .. " release version")
+  assertPresent(document, "0.4.4", name .. " release version")
 end
 
 print("PASS: Retail 12.1.5 static callback-event, native-fallback, ownership and lifecycle contracts")

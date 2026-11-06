@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.4 — adaptive fire cadence and source continuity
+
+- Split the old unified fire FPS into idle and combat cadences.
+- New/reset defaults use 2 FPS idle smolder and 8 FPS combat fire.
+- Schema 7 migrates pre-0.4 `outFPS`/`combatFPS` and schema-6 `fireFPS`; existing explicit schema-7 values remain unchanged.
+- The ticker restarts only when combat state selects a different configured interval.
+- Verified the complete `12.1.5.70688 → 12.1.5.70783` live-source delta; it contains no Minimap, Settings, Frame callback, XML, or TOC contract changes.
+- Updated source-review metadata to build `12.1.5.70783`.
+
 ## 0.4.3 — callback-event and native-mode hardening
 
 - Registered secret `MINIMAP_PING` through `RegisterEventCallback`/`UnregisterEventCallback` instead of raw frame-event registration.

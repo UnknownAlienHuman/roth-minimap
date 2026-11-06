@@ -17,7 +17,8 @@ local SETTING_VARIABLES = {
   "ROTH_MINIMAP_VIGNETTE_ALPHA",
   "ROTH_MINIMAP_FIRE_IDLE",
   "ROTH_MINIMAP_FIRE_COMBAT",
-  "ROTH_MINIMAP_FIRE_FPS",
+  "ROTH_MINIMAP_FIRE_IDLE_FPS",
+  "ROTH_MINIMAP_FIRE_COMBAT_FPS",
   "ROTH_MINIMAP_OUTSET",
   "ROTH_MINIMAP_PING",
   "ROTH_MINIMAP_PING_WHERE",
@@ -109,7 +110,9 @@ local function RegisterSettings()
   Slider(category, ns.db.skin, "ROTH_MINIMAP_VIGNETTE_ALPHA", "vignetteAlpha", "Vignette alpha", 0.22, 0, 1, 0.05)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_IDLE", "fireIdleAlpha", "Idle fire alpha", 0.14, 0, 1, 0.05)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_COMBAT", "fireCombatAlpha", "Combat fire alpha", 0.42, 0, 1, 0.05)
-  Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_FPS", "fireFPS", "Fire frames per second", 8, 1, 20, 1)
+  Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_IDLE_FPS", "fireIdleFPS", "Idle fire frames per second", 2, 1, 8, 1,
+    "Use a low idle cadence for a subtle smolder and lower steady-state CPU cost.")
+  Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_COMBAT_FPS", "fireCombatFPS", "Combat fire frames per second", 8, 1, 20, 1)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_OUTSET", "outset", "Skin outset", 34, 0, 96, 1)
 
   Checkbox(category, ns.db.ping, "ROTH_MINIMAP_PING", "enabled", "Ping notification", true,

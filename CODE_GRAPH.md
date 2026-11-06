@@ -1,9 +1,9 @@
-# Roth Minimap code graph — 0.4.3
+# Roth Minimap code graph — 0.4.4
 
 ```mermaid
 flowchart LR
   TOC["RothMinimap.toc"] --> CORE["RothMinimap.lua"]
-  CORE --> DB[("RothMinimapDB schema 6")]
+  CORE --> DB[("RothMinimapDB schema 7")]
   CORE --> MODE{"Native presentation?"}
   MODE -->|normal| MASK["square mask + exact art policy"]
   MODE -->|hybrid / housing| FALLBACK["default mask + restore art"]
@@ -13,7 +13,7 @@ flowchart LR
   CORE --> OPT["Options.lua"]
   PING --> CALLBACK["MINIMAP_PING CallbackEvent"]
   ZOOM --> WHEEL["native OnMouseWheel post-hook"]
-  SKIN --> OWNED["addon-owned regions + visible-only ticker"]
+  SKIN --> OWNED["addon-owned regions + adaptive ticker"]
   OPT --> DB
 ```
 

@@ -4,8 +4,8 @@
 local ADDON_NAME, ns = ...
 ns = ns or {}
 
-ns.VERSION = "0.4.3"
-ns.DB_VERSION = 6
+ns.VERSION = "0.4.4"
+ns.DB_VERSION = 7
 ns.media = "Interface\\AddOns\\RothMinimap\\media\\"
 
 local DEFAULT_MASK = "Interface\\Minimap\\UI-Minimap-Background"
@@ -28,7 +28,8 @@ local DEFAULTS = {
     vignetteAlpha = 0.22,
     fireIdleAlpha = 0.14,
     fireCombatAlpha = 0.42,
-    fireFPS = 8,
+    fireIdleFPS = 2,
+    fireCombatFPS = 8,
     outset = 34,
   },
 
@@ -169,6 +170,11 @@ local function CopyColor(value, fallback, alpha)
 end
 
 local function SanitizeDB(db)
+  local rawSkin = SafeTable(db.skin)
+  local unifiedFireFPS = rawSkin and SafeNumber(rawSkin.fireFPS)
+  local existingIdleFPS = rawSkin and SafeNumber(rawSkin.fireIdleFPS)
+  local existingCombatFPS = rawSkin and SafeNumber(rawSkin.fireCombatFPS)
+
   MergeDefaults(db, DEFAULTS)
   db.version = ns.DB_VERSION
   db.enabled = SafeBoolean(db.enabled) ~= false
@@ -177,6 +183,14 @@ local function SanitizeDB(db)
 
   db.skin = SafeTable(db.skin) or {}
   MergeDefaults(db.skin, DEFAULTS.skin)
+  if unifiedFireFPS then
+    if existingIdleFPS == nil then
+      db.skin.fireIdleFPS = math.min(unifiedFireFPS, DEFAULTS.skin.fireIdleFPS)
+    end
+    if existingCombatFPS == nil then
+      db.skin.fireCombatFPS = unifiedFireFPS
+    end
+  end
   db.skin.enabled = SafeBoolean(db.skin.enabled) ~= false
   db.skin.border = SafeBoolean(db.skin.border) ~= false
   db.skin.runes = SafeBoolean(db.skin.runes) == true
@@ -187,7 +201,8 @@ local function SanitizeDB(db)
   db.skin.vignetteAlpha = Clamp(db.skin.vignetteAlpha, DEFAULTS.skin.vignetteAlpha, 0, 1)
   db.skin.fireIdleAlpha = Clamp(db.skin.fireIdleAlpha, DEFAULTS.skin.fireIdleAlpha, 0, 1)
   db.skin.fireCombatAlpha = Clamp(db.skin.fireCombatAlpha, DEFAULTS.skin.fireCombatAlpha, 0, 1)
-  db.skin.fireFPS = math.floor(Clamp(db.skin.fireFPS, DEFAULTS.skin.fireFPS, 1, 20) + 0.5)
+  db.skin.fireIdleFPS = math.floor(Clamp(db.skin.fireIdleFPS, DEFAULTS.skin.fireIdleFPS, 1, 8) + 0.5)
+  db.skin.fireCombatFPS = math.floor(Clamp(db.skin.fireCombatFPS, DEFAULTS.skin.fireCombatFPS, 1, 20) + 0.5)
   db.skin.outset = math.floor(Clamp(db.skin.outset, DEFAULTS.skin.outset, 0, 96) + 0.5)
 
   db.ping = SafeTable(db.ping) or {}
@@ -201,6 +216,7 @@ local function SanitizeDB(db)
   db.zoom.autoReset = SafeBoolean(db.zoom.autoReset) ~= false
   db.zoom.delay = Clamp(db.zoom.delay, DEFAULTS.zoom.delay, 1, 10)
 
+  -- Retired pre-0.4 ownership and duplicated settings.
   db.buttons = nil
   db.position = nil
   db.mover = nil
@@ -214,6 +230,7 @@ local function SanitizeDB(db)
   db.square = nil
   db.skinEnabled = nil
   db.skinPadding = nil
+  db.skin.fireFPS = nil
   db.visual = nil
   db.fire = nil
   db.quickMap = nil
@@ -281,7 +298,11 @@ local function MigrateLegacyDB(old)
     if runes then
       local runesEnabled = SafeBoolean(runes.enabled)
       if runesEnabled ~= nil then migrated.skin.runes = runesEnabled end
-      migrated.skin.runesColor = CopyColor(runes.color, migrated.skin.runesColor, FirstNumber(runes.outAlpha, runes.alpha))
+      migrated.skin.runesColor = CopyColor(
+        runes.color,
+        migrated.skin.runesColor,
+        FirstNumber(runes.outAlpha, runes.alpha)
+      )
     end
 
     local vignette = SafeTable(visual.vignette)
@@ -297,7 +318,8 @@ local function MigrateLegacyDB(old)
     if fireEnabled ~= nil then migrated.skin.fire = fireEnabled end
     migrated.skin.fireIdleAlpha = FirstNumber(legacyFire.outAlpha) or migrated.skin.fireIdleAlpha
     migrated.skin.fireCombatAlpha = FirstNumber(legacyFire.combatAlpha) or migrated.skin.fireCombatAlpha
-    migrated.skin.fireFPS = FirstNumber(legacyFire.combatFPS, legacyFire.outFPS) or migrated.skin.fireFPS
+    migrated.skin.fireIdleFPS = FirstNumber(legacyFire.outFPS) or migrated.skin.fireIdleFPS
+    migrated.skin.fireCombatFPS = FirstNumber(legacyFire.combatFPS, legacyFire.outFPS) or migrated.skin.fireCombatFPS
   end
 
   if legacyPing then
@@ -380,8 +402,12 @@ end
 local nativePresentationReason
 
 local function DetectNativePresentation()
-  if ReadNamespaceBoolean(_G.C_Minimap, "ShouldUseHybridMinimap") then return "hybrid" end
-  if ReadNamespaceBoolean(_G.C_Housing, "IsInsideHouse") then return "housing" end
+  if ReadNamespaceBoolean(_G.C_Minimap, "ShouldUseHybridMinimap") then
+    return "hybrid"
+  end
+  if ReadNamespaceBoolean(_G.C_Housing, "IsInsideHouse") then
+    return "housing"
+  end
   return nil
 end
 
@@ -497,7 +523,11 @@ local function RunQueuedRefresh()
   refreshTimer = nil
   local fullApply = refreshNeedsFullApply
   refreshNeedsFullApply = false
-  if fullApply then ns.ApplyAll() else RefreshOwnedGeometry() end
+  if fullApply then
+    ns.ApplyAll()
+  else
+    RefreshOwnedGeometry()
+  end
 end
 
 function ns.QueueRefresh(fullApply)
@@ -553,7 +583,11 @@ coreEvents:SetScript("OnEvent", function(_, event)
   elseif event == "PLAYER_ENTERING_WORLD" or event == "UI_SCALE_CHANGED" then
     ns.QueueRefresh(true)
   elseif event == "PLAYER_REGEN_ENABLED" then
-    if pendingFullApply then ns.ApplyAll() elseif pendingGeometryRefresh then RefreshOwnedGeometry() end
+    if pendingFullApply then
+      ns.ApplyAll()
+    elseif pendingGeometryRefresh then
+      RefreshOwnedGeometry()
+    end
   end
 end)
 

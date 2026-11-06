@@ -24,12 +24,12 @@ local legacy = {
 RothMinimapDB = legacy
 local ns = {}
 assert(loadfile("RothMinimap.lua"))("RothMinimap", ns)
-assert(ns.db == legacy and ns.db.version == 6)
+assert(ns.db == legacy and ns.db.version == 7)
 assert(ns.db.squareMask == false and ns.db.skin.enabled == false)
 assert(ns.db.skin.borderColor[1] == 0.2 and ns.db.skin.borderColor[4] == 0.75)
 assert(ns.db.skin.runesColor[4] == 0.25)
 assert(ns.db.skin.vignette == false and ns.db.skin.vignetteAlpha == 0.15)
-assert(ns.db.skin.fireFPS == 9)
+assert(ns.db.skin.fireIdleFPS == 2 and ns.db.skin.fireCombatFPS == 9 and ns.db.skin.fireFPS == nil)
 assert(ns.db.ping.where == "chat" and ns.db.ping.duration == 4 and ns.db.ping.sound == nil)
 assert(ns.db.visual == nil and ns.db.fire == nil and ns.db.skinEnabled == nil)
 assert(_G.RothMinimap == nil)
@@ -65,6 +65,14 @@ assert(ns.skin.frame:GetFrameStrata() == "LOW")
 assert(ns.skin.frame:GetFrameLevel() == 10)
 assert(ns.skin.frame:GetFrameLevel() < native:GetFrameLevel())
 assert(#tickers > 0 and not tickers[#tickers].cancelled)
+local idleTicker = tickers[#tickers]
+assert(idleTicker.interval == 0.5)
+event("PLAYER_REGEN_DISABLED")
+local combatTicker = tickers[#tickers]
+assert(idleTicker.cancelled and combatTicker ~= idleTicker and math.abs(combatTicker.interval - (1 / 9)) < 0.000001)
+event("PLAYER_REGEN_ENABLED")
+local resumedIdleTicker = tickers[#tickers]
+assert(combatTicker.cancelled and resumedIdleTicker ~= combatTicker and resumedIdleTicker.interval == 0.5)
 assert(E.hasCallbackEvent("MINIMAP_PING"))
 assert(not E.hasRawEvent("MINIMAP_PING"))
 
@@ -163,9 +171,10 @@ assert(ns.db == rootRef)
 assert(ns.db.skin == skinRef)
 assert(ns.db.ping == pingRef)
 assert(ns.db.zoom == zoomRef)
-assert(ns.db.version == 6)
+assert(ns.db.version == 7)
 assert(ns.db.skin.borderColor[1] == 0.25)
 assert(ns.db.skin.vignetteAlpha == 0.22)
+assert(ns.db.skin.fireIdleFPS == 2 and ns.db.skin.fireCombatFPS == 8)
 
 RothMinimapDB = {
   version = 6,
@@ -174,14 +183,17 @@ RothMinimapDB = {
     enabled = true,
     borderColor = { 1, 1, 1, 1 },
     vignetteAlpha = 0.40,
+    fireFPS = 12,
   },
   ping = {},
   zoom = {},
 }
 local ns2 = {}
 assert(loadfile("RothMinimap.lua"))("RothMinimap", ns2)
+assert(ns2.db.version == 7)
 assert(ns2.db.skin.borderColor[1] == 1)
 assert(ns2.db.skin.vignetteAlpha == 0.40)
+assert(ns2.db.skin.fireIdleFPS == 2 and ns2.db.skin.fireCombatFPS == 12 and ns2.db.skin.fireFPS == nil)
 
 RothMinimapDB = {
   version = 5,
@@ -192,16 +204,28 @@ RothMinimapDB = {
 }
 local ns3 = {}
 assert(loadfile("RothMinimap.lua"))("RothMinimap", ns3)
-assert(ns3.db.version == 6 and ns3.db.enabled == true)
-assert(ns3.db.skin.fireFPS == 20 and ns3.db.skin.outset == 0)
+assert(ns3.db.version == 7 and ns3.db.enabled == true)
+assert(ns3.db.skin.fireIdleFPS == 2 and ns3.db.skin.fireCombatFPS == 20 and ns3.db.skin.fireFPS == nil and ns3.db.skin.outset == 0)
 assert(ns3.db.ping.where == "toast" and ns3.db.ping.duration == 1)
 assert(ns3.db.zoom.delay == 10)
 
 RothMinimapDB = "corrupt"
 local ns4 = {}
 assert(loadfile("RothMinimap.lua"))("RothMinimap", ns4)
-assert(type(ns4.db) == "table" and ns4.db.version == 6)
+assert(type(ns4.db) == "table" and ns4.db.version == 7)
 assert(ns4.db.skin.borderColor[1] == 0.25)
 assert(ns4.db.skin.vignetteAlpha == 0.22)
+assert(ns4.db.skin.fireIdleFPS == 2 and ns4.db.skin.fireCombatFPS == 8)
 
-print("PASS: migration, CallbackEvent ping, native fallback, draw order, zoom, combat and reset")
+RothMinimapDB = {
+  version = 7,
+  enabled = true,
+  skin = { fireIdleFPS = 5, fireCombatFPS = 13 },
+  ping = {},
+  zoom = {},
+}
+local ns5 = {}
+assert(loadfile("RothMinimap.lua"))("RothMinimap", ns5)
+assert(ns5.db.skin.fireIdleFPS == 5 and ns5.db.skin.fireCombatFPS == 13)
+
+print("PASS: migration, adaptive fire cadence, CallbackEvent ping, native fallback, zoom, combat and reset")

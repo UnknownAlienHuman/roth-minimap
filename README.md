@@ -8,9 +8,9 @@ Roth Minimap adds a square mask, restrained Diablo-style art, an opaque ping not
 
 - Retail / Midnight 12.1.5
 - Interface `120105`
-- Addon version `0.4.3`
-- SavedVariables schema `6`
-- Source-reviewed Blizzard baseline `12.1.5.70688`
+- Addon version `0.4.4`
+- SavedVariables schema `7`
+- Source-reviewed Blizzard live build `12.1.5.70783`
 - External dependencies: none
 - In-client runtime matrix: **NOT-RUN**
 
@@ -31,7 +31,7 @@ The addon does not scan frame trees, collect minimap buttons, reparent foreign c
 
 Blizzard Hybrid Minimap uses a separate `MapCanvas` and its own circular mask. Indoor housing also adds a native static overlay. Roth Minimap cannot safely reshape either foreign surface.
 
-While either mode is active, version 0.4.3 automatically:
+While either mode is active, version 0.4.4 automatically:
 
 - restores the default native minimap mask;
 - restores the exact decorative alpha values previously hidden by the addon;
@@ -44,9 +44,10 @@ Normal square presentation returns on the next full lifecycle refresh after the 
 
 All skin regions are addon-owned and noninteractive. The default border tint is dark brown and the default inner vignette is `0.22`.
 
-The 4×4 fire-atlas ticker:
+The 4×4 fire-atlas ticker uses separate cadence limits:
 
-- is bounded to 1–20 FPS;
+- idle default: 2 FPS, configurable from 1–8;
+- combat default: 8 FPS, configurable from 1–20;
 - exists only while the skin and native minimap are effectively visible;
 - stops on hide, disable, native fallback, or fire disable;
 - is not recreated when the interval is unchanged.
@@ -87,7 +88,7 @@ texlua tests/test_contracts_12_1_5.lua
 texlua tests/test_runtime_stubs.lua
 ```
 
-Offline checks cover schema migration, Settings identity, callback-event ping registration, secret payload opacity, native fallback, draw order, visibility, zoom, combat deferral, coalescing, and reset.
+Offline checks cover schema migration, adaptive idle/combat fire cadence, Settings identity, callback-event ping registration, secret payload opacity, native fallback, draw order, visibility, zoom, combat deferral, coalescing, and reset.
 
 Live testing is still required for actual client build capture, Edit Mode profiles, hybrid/housing rendering, atlas alignment, taint/forbidden errors, logout persistence, and profiler metrics.
 

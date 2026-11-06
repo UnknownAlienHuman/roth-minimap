@@ -2,7 +2,7 @@
 
 ## Contract
 
-Target Retail 12.1.5 / Interface `120105`. Addon version `0.4.3`, schema `6`, selected Blizzard source `12.1.5.70688`.
+Target Retail 12.1.5 / Interface `120105`. Addon version `0.4.4`, schema `7`, reviewed Blizzard live source `12.1.5.70783`.
 
 Blizzard/Edit Mode owns `MinimapCluster`, native input, native widget topology, Hybrid Minimap, housing overlays, and third-party buttons. Roth Minimap owns only its DB, deterministic Minimap mask policy, exact decorative-alpha mutations, and addon-created skin/ping/reset objects.
 
@@ -41,11 +41,11 @@ The cached mode is refreshed by full applies, including `PLAYER_ENTERING_WORLD` 
 
 ## Persistence
 
-`## LoadSavedVariablesFirst: 1` allows one file-scope migration before Settings registration. Preserve the root and nested Settings tables on reset. Existing valid user colors/alpha values remain unchanged; tuned defaults affect new/reset databases only.
+`## LoadSavedVariablesFirst: 1` allows one file-scope migration before Settings registration. Preserve the root and nested Settings tables on reset. Existing valid user colors/alpha/cadence values remain unchanged. Schema 7 maps the old unified `fireFPS` to a 2-FPS-capped idle cadence and preserves it as the combat cadence.
 
 ## Performance
 
-One visible-only fire ticker, one zoom timer, and one coalesced refresh timer maximum. No `OnUpdate`, polling, tree scans, per-event timer fan-out, or retry loops.
+One visible-only fire ticker with separate idle/combat cadence, one zoom timer, and one coalesced refresh timer maximum. No `OnUpdate`, polling, tree scans, per-event timer fan-out, or retry loops.
 
 ## Verification
 

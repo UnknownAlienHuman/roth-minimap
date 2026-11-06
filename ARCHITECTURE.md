@@ -1,4 +1,4 @@
-# Roth Minimap architecture — 0.4.3
+# Roth Minimap architecture — 0.4.4
 
 ## Owners
 
@@ -29,7 +29,7 @@ Hybrid Minimap or indoor housing
 
 ```text
 file load
-  -> schema-6 migration
+  -> schema-7 migration
   -> module load
   -> Settings registration
 
@@ -55,7 +55,7 @@ No borrowed event payload, foreign frame, callback handle, timer, animation, or 
 
 ## Performance boundary
 
-- fire ticker: 1–20 FPS, visible-only;
+- fire ticker: idle 1–8 FPS / combat 1–20 FPS, visible-only and restarted only when the selected interval changes;
 - zoom: one cancellable timer;
 - lifecycle: one zero-delay coalescing timer;
 - frames/textures/animations: created once;
