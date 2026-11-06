@@ -16,7 +16,8 @@
 - Removed native mouse-wheel enablement ownership and hard-coded zoom ceiling.
 - Isolated module apply failures while preserving visible error reporting.
 - Added static Retail 12.1.5 contract tests and offline runtime stubs for migration, art ownership, one-step zoom, reset timing, and in-place DB reset.
-- Removed stale ButtonBag-era README/TODO documents.
+- Removed stale ButtonBag-era README/TODO/animation/design notes.
+- Removed about 5 MiB of unreferenced legacy char, alternate-fire, HUD-overlay, and shadow textures.
 
 ## 0.4.0 — ownership rewrite
 
