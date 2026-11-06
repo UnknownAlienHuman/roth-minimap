@@ -1,21 +1,27 @@
--- RothMinimap ping notification for Retail 12.1.
--- The MINIMAP_PING unit payload is intentionally not inspected or named.
+-- RothMinimap ping notification for Retail 12.1.5.
+-- The MINIMAP_PING payload is intentionally ignored in full.
 
-local ADDON_NAME, ns = ...
+local _, ns = ...
 ns.ping = ns.ping or {}
 local M = ns.ping
 local U = ns.util
 
 local toast
-local text
 local animation
 local hold
 local registered = false
 
+local function StopToast()
+  if animation then animation:Stop() end
+  if toast then toast:Hide() end
+end
+
 local function EnsureToast()
   if toast then return true end
   if InCombatLockdown and InCombatLockdown() then return false end
-  toast = CreateFrame("Frame", "RothMinimapPingToast", UIParent, "BackdropTemplate")
+  if not U.CanUseObject(_G.Minimap) then return false end
+
+  toast = CreateFrame("Frame", "RothMinimapPingToast", Minimap, "BackdropTemplate")
   toast:SetSize(190, 36)
   toast:SetFrameStrata("HIGH")
   toast:SetPoint("TOP", Minimap, "BOTTOM", 0, -8)
@@ -28,7 +34,7 @@ local function EnsureToast()
   toast:SetBackdropBorderColor(1, 1, 1, 0.15)
   toast:Hide()
 
-  text = toast:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local text = toast:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   text:SetPoint("CENTER")
   text:SetText("Map ping received")
 
@@ -49,13 +55,8 @@ local function EnsureToast()
   fadeOut:SetToAlpha(0)
   fadeOut:SetDuration(0.30)
   animation:SetScript("OnFinished", function() toast:Hide() end)
+  Minimap:HookScript("OnHide", StopToast)
   return true
-end
-
-local function PlaySoundSafe()
-  if not (PlaySound and SOUNDKIT) then return end
-  local sound = SOUNDKIT.MAP_PING or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON
-  if sound then pcall(PlaySound, sound, "Master") end
 end
 
 local function OnPing()
@@ -63,20 +64,23 @@ local function OnPing()
   if not (ns.db and ns.db.enabled and db and db.enabled) then return end
 
   if db.where == "chat" then
+    StopToast()
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffRothMinimap:|r map ping received") end
-  elseif EnsureToast() then
+  elseif U.SafeGet(Minimap, "IsVisible") == true and EnsureToast() then
     hold:SetDuration(U.clamp(U.SafeNumber(db.duration) or 3, 1, 10))
     animation:Stop()
     toast:Show()
     animation:Play()
   end
 
-  if ns.skin and type(ns.skin.Pulse) == "function" then ns.skin:Pulse("ping") end
-  if db.sound then PlaySoundSafe() end
+  if ns.skin and type(ns.skin.Pulse) == "function" then ns.skin:Pulse() end
 end
 
 function M:Apply()
-  local enabled = ns.db and ns.db.enabled and ns.db.ping and ns.db.ping.enabled
+  local db = ns.db and ns.db.ping
+  local enabled = ns.db and ns.db.enabled and db and db.enabled
+
+  if enabled and db.where == "toast" then EnsureToast() end
   if enabled and not registered then
     ns.RegisterEvent("MINIMAP_PING", OnPing)
     registered = true
@@ -84,11 +88,13 @@ function M:Apply()
     ns.UnregisterEvent("MINIMAP_PING", OnPing)
     registered = false
   end
-  if not enabled and toast then toast:Hide() end
+
+  if not enabled or db.where ~= "toast" then StopToast() end
+  return true
 end
 
 function M:Disable()
   if registered then ns.UnregisterEvent("MINIMAP_PING", OnPing) end
   registered = false
-  if toast then toast:Hide() end
+  StopToast()
 end

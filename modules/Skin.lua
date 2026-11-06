@@ -1,7 +1,7 @@
--- RothMinimap additive skin for Retail 12.1.
+-- RothMinimap additive skin for Retail 12.1.5.
 -- All regions are addon-owned. Blizzard minimap widgets remain untouched.
 
-local ADDON_NAME, ns = ...
+local _, ns = ...
 ns.skin = ns.skin or {}
 local M = ns.skin
 local U = ns.util
@@ -13,8 +13,10 @@ local fireTexture
 local pulseTexture
 local vignette
 local fireTicker
+local fireInterval
 local fireIndex = 0
 local inCombat = false
+local geometryReady = false
 
 local FIRE_ATLAS = ns.media .. "RM_DIABLO_FIRE_ATLAS_512_HOLE_NORMAL.tga"
 local BORDER_TEXTURE = ns.media .. "RM_DIABLO_BORDER_512.tga"
@@ -33,9 +35,14 @@ local function SetColor(texture, color)
   )
 end
 
+local function IsEffectivelyVisible()
+  return frame and U.SafeGet(frame, "IsVisible") == true and U.SafeGet(Minimap, "IsVisible") == true
+end
+
 local function StopFireTicker()
   if fireTicker and type(fireTicker.Cancel) == "function" then fireTicker:Cancel() end
   fireTicker = nil
+  fireInterval = nil
 end
 
 local function SetFireFrame(index)
@@ -48,13 +55,22 @@ local function SetFireFrame(index)
 end
 
 local function StartFireTicker()
-  StopFireTicker()
   local db = ns.db and ns.db.skin
-  if not (db and ns.db.enabled and db.enabled and db.fire and frame and frame:IsShown()) then return end
+  if not (db and ns.db.enabled and db.enabled and db.fire and IsEffectivelyVisible()) then
+    StopFireTicker()
+    return
+  end
   if not C_Timer or type(C_Timer.NewTicker) ~= "function" then return end
+
   local fps = U.clamp(U.SafeNumber(db.fireFPS) or 8, 1, 20)
-  fireTicker = C_Timer.NewTicker(1 / fps, function()
-    if not frame or not frame:IsShown() or not ns.db.enabled or not ns.db.skin.fire then
+  local interval = 1 / fps
+  if fireTicker and fireInterval == interval then return end
+
+  StopFireTicker()
+  fireInterval = interval
+  fireTicker = C_Timer.NewTicker(interval, function()
+    local current = ns.db and ns.db.skin
+    if not (current and ns.db.enabled and current.enabled and current.fire and IsEffectivelyVisible()) then
       StopFireTicker()
       return
     end
@@ -71,6 +87,7 @@ local function UpdateFireAlpha()
     StopFireTicker()
     return
   end
+
   local alpha = inCombat and db.fireCombatAlpha or db.fireIdleAlpha
   fireTexture:SetAlpha(U.clamp(U.SafeNumber(alpha) or 0, 0, 1))
   fireTexture:Show()
@@ -82,11 +99,13 @@ local function Ensure()
   if InCombatLockdown and InCombatLockdown() then return false end
   if not U.CanUseObject(_G.Minimap) then return false end
 
-  frame = CreateFrame("Frame", "RothMinimapSkinFrame", UIParent)
+  frame = CreateFrame("Frame", "RothMinimapSkinFrame", Minimap)
   frame:SetFrameStrata("HIGH")
   frame:SetFrameLevel(300)
   frame:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
   frame:Hide()
+  frame:SetScript("OnShow", UpdateFireAlpha)
+  frame:SetScript("OnHide", StopFireTicker)
 
   border = frame:CreateTexture(nil, "OVERLAY", nil, 1)
   border:SetAllPoints(frame)
@@ -138,12 +157,18 @@ end
 function M:UpdateGeometry()
   if not Ensure() then return false end
   if InCombatLockdown and InCombatLockdown() then return false end
-  local width = U.SafeNumber(U.SafeGet(Minimap, "GetWidth")) or 140
-  local height = U.SafeNumber(U.SafeGet(Minimap, "GetHeight")) or 140
+
+  local width = U.SafeNumber(U.SafeGet(Minimap, "GetWidth"))
+  local height = U.SafeNumber(U.SafeGet(Minimap, "GetHeight"))
+  if not width or not height or width <= 0 or height <= 0 then return false end
+
   local outset = U.clamp(U.SafeNumber(ns.db.skin.outset) or 34, 0, 96)
-  frame:ClearAllPoints()
-  frame:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
-  frame:SetSize(width + outset * 2, height + outset * 2)
+  local targetWidth = width + outset * 2
+  local targetHeight = height + outset * 2
+  if frame:GetWidth() ~= targetWidth or frame:GetHeight() ~= targetHeight then
+    frame:SetSize(targetWidth, targetHeight)
+  end
+  geometryReady = true
   return true
 end
 
@@ -151,32 +176,42 @@ function M:Apply()
   if not Ensure() then return false end
   local db = ns.db and ns.db.skin
   local enabled = ns.db and ns.db.enabled and db and db.enabled
-  frame:SetShown(enabled == true)
+
   if not enabled then
+    if frame.pulseGroup then frame.pulseGroup:Stop() end
+    frame:Hide()
     if vignette then vignette:Hide() end
     StopFireTicker()
     return true
   end
 
-  self:UpdateGeometry()
+  local updated = self:UpdateGeometry()
+  if not updated and not geometryReady then
+    frame:Hide()
+    StopFireTicker()
+    return false
+  end
+
   border:SetShown(db.border == true)
   SetColor(border, db.borderColor)
   runes:SetShown(db.runes == true)
   SetColor(runes, db.runesColor)
   vignette:SetShown(db.vignette == true)
   vignette:SetAlpha(db.vignette and U.clamp(U.SafeNumber(db.vignetteAlpha) or 0, 0, 1) or 0)
+  frame:Show()
   UpdateFireAlpha()
   return true
 end
 
 function M:Pulse()
-  if not frame or not frame:IsShown() or not frame.pulseGroup then return end
+  if not IsEffectivelyVisible() or not frame.pulseGroup then return end
   frame.pulseGroup:Stop()
   frame.pulseGroup:Play()
 end
 
 function M:Disable()
   StopFireTicker()
+  if frame and frame.pulseGroup then frame.pulseGroup:Stop() end
   if frame then frame:Hide() end
   if vignette then vignette:Hide() end
 end

@@ -1,61 +1,61 @@
 # Roth Minimap
 
-Edit-Mode-compatible minimap presentation for World of Warcraft Retail 12.1.
+Edit-Mode-compatible minimap presentation for World of Warcraft Retail 12.1.5.
 
-Roth Minimap applies a square mask, additive Diablo-style art, an opaque-safe ping notification, and bounded mouse-wheel zoom. Blizzard remains the owner of MinimapCluster geometry and every clock, calendar, tracking, difficulty, mail, addon-compartment, and third-party minimap button.
+Roth Minimap owns a square mask, additive Diablo-style art, a fixed opaque-safe ping notification, and an optional reset after Blizzard's native mouse-wheel zoom. Blizzard remains the sole owner of `MinimapCluster` geometry, native widgets, input, and third-party minimap buttons.
 
 ## Compatibility
 
-- Game: World of Warcraft Retail / Midnight 12.1.0
-- Interface: `120100`
-- Version: `0.4.0`
-- Verified Blizzard source baseline: `12.1.0.69497`
-- SavedVariables: `RothMinimapDB`
+- Game: World of Warcraft Retail / Midnight 12.1.5
+- Interface: `120105`
+- Addon version: `0.4.1`
+- SavedVariables schema: `5`
+- Source-reviewed Blizzard baseline: `12.1.5.70688`
+- In-client runtime matrix: **NOT-RUN**
 - External dependencies: none
 - GitHub Actions: none
 
-## Geometry and Blizzard widgets
+## Ownership
 
-Use Blizzard **Edit Mode** to position and size the Minimap. Roth Minimap does not save or overwrite MinimapCluster points, parent, size, scale, clamping, mouse scripts, click handlers, or state drivers.
+Use Blizzard **Edit Mode** to position and size the minimap. Roth Minimap does not persist or replace Minimap/MinimapCluster points, parent, size, scale, scripts, state drivers, or child-widget layout.
 
-The addon does not move or hide functional widgets. These remain Blizzard-owned:
+The addon never scans frame trees, collects minimap buttons, reparents foreign controls, or overrides their methods. Clock, calendar, tracking, difficulty, mail, alerts, Addon Compartment, and third-party buttons remain native.
 
-- `TimeManagerClockButton`;
-- `GameTimeFrame` / calendar;
-- `MiniMapTracking`;
-- difficulty and challenge badges;
-- mail and queue/status indicators;
-- `AddonCompartmentFrame`;
-- native and third-party minimap buttons.
+`Hide decorative Blizzard border art` changes alpha only on the selected-source decorative owners:
 
-`Hide decorative Blizzard border art` changes alpha only on a short allowlist of known decorative border/background regions. Original alpha is captured and restored. It does not reparent or reanchor widgets.
+- `MinimapCompassTexture`;
+- `MinimapCluster.BorderTop`.
 
-## Removed ButtonBag
+`MinimapBackdrop` is deliberately excluded because it owns the housing overlay and expansion landing-page controls.
 
-The old ButtonBag and AddonCompartment diagnostic modules are removed. They scanned global/minimap frame trees, reparented real foreign buttons, changed their alpha/parent/points, and temporarily replaced `SetPoint`/`ClearAllPoints` methods. There is no generic safe contract for taking ownership of every Blizzard and third-party minimap button on Retail 12.1.
+## Skin and visibility
 
-All buttons remain in their native ownership/lifecycle. The Blizzard Addon Compartment remains available as the supported central launcher.
+All border, rune, fire, pulse, and vignette regions are addon-owned. The outer skin is parented to `Minimap`, follows its effective visibility, and retains the last accessible ordinary geometry instead of inventing fallback dimensions.
 
-## Additive skin
+The 4×4 fire-atlas ticker:
 
-All border, rune, fire, glow, and vignette textures are addon-owned:
-
-- square mask on `Minimap`;
-- border/runes/fire frame anchored to `Minimap` without changing Minimap geometry;
-- optional vignette texture created on Minimap;
-- 4×4 fire atlas ticker that exists only while the visible skin has fire enabled;
-- combat changes only fire alpha/speed state;
-- ping can trigger an addon-owned pulse.
-
-Edit Mode exit and UI-scale/world events update only the addon-owned skin geometry.
+- is bounded to 1–20 FPS;
+- exists only while the skin and native minimap are effectively visible;
+- is cancelled on hide/disable;
+- is not recreated when the configured interval did not change.
 
 ## Ping
 
-`MINIMAP_PING` is treated as an opaque notification. The addon never calls `UnitName` or formats the event unit payload. It shows fixed ordinary text: `Map ping received`.
+`MINIMAP_PING` arguments are ignored in full. The addon never reads, compares, formats, logs, persists, or defers the secret payload. It may show only fixed ordinary text: `Map ping received`.
+
+The toast is created outside combat when the feature is applied. Roth Minimap does not play a second ping sound because Blizzard already owns native ping audio.
 
 ## Zoom
 
-Mouse-wheel zoom uses only `Minimap:GetZoom` and `Minimap:SetZoom`. Optional reset uses one cancellable `C_Timer.NewTimer`; there is no recursive timer or smooth polling loop. Zoom input and reset are skipped in combat.
+Blizzard's `MinimapMixin:OnMouseWheel` performs the zoom step. Roth Minimap post-hooks it only to observe the resulting ordinary zoom and schedule one cancellable reset to level `0`.
+
+The addon does not call `EnableMouseWheel`, does not perform a second zoom step, does not hard-code a maximum zoom level, and cancels pending reset work on disable, hide, combat entry, and re-apply.
+
+## Persistence and reset
+
+`## LoadSavedVariablesFirst: 1` makes file-scope schema migration explicit for the current client family. Schema 5 removes the obsolete duplicate ping-sound and wheel-owner fields.
+
+`/rmmap reset` resets the root and nested SavedVariables tables **in place**. This preserves the table identities already registered with Blizzard Settings, then notifies every registered setting.
 
 ## Commands
 
@@ -67,19 +67,17 @@ Mouse-wheel zoom uses only `Minimap:GetZoom` and `Minimap:SetZoom`. Optional res
 /rmmap status
 ```
 
-`/rmmap status` reports that geometry is owned by Blizzard Edit Mode and ButtonBag is removed.
+## Validation
 
-## Validation status
+```text
+texlua --luaconly RothMinimap.lua Options.lua modules/Skin.lua modules/Ping.lua modules/Zoom.lua tests/test_contracts_12_1_5.lua tests/test_runtime_stubs.lua
+texlua tests/test_contracts_12_1_5.lua
+texlua tests/test_runtime_stubs.lua
+```
 
-`tests/test_ownership_12_1.lua` is a local static regression that enforces:
+The local checks cover syntax, schema migration, in-place reset, exact decorative ownership, opaque ping policy, effective skin visibility, one native wheel step, and one cancellable reset timer.
 
-- Interface `120100`;
-- no ButtonBag/AddonCompartment module in the TOC;
-- no frame-tree scan, foreign SetParent/reanchor/method override, or `UnitName` ping path;
-- Edit Mode callback presence;
-- bounded one-timer zoom reset.
-
-Live Retail testing remains required for Edit Mode layouts, square mask, decorative-art restore, skin atlas, combat fire, ping, zoom, UI scale, Settings, reload migration, taint, errors, and performance.
+Live Retail validation remains required for actual build/Interface capture, Edit Mode layouts, masks, atlas rendering, housing/landing-page coexistence, combat transitions, Settings, reload/logout persistence, taint/forbidden errors, and profiler measurements.
 
 ## Developer documentation
 
