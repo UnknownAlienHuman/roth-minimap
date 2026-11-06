@@ -1,71 +1,64 @@
-# Roth Minimap architecture
+# Roth Minimap architecture — 0.4.3
 
-Release `0.4.2` · SavedVariables schema `6`.
+## Owners
 
-## Runtime owners
+- `RothMinimap.lua`: schema migration, access gates, native-mode detection, exact art restore, mask policy, lifecycle coalescing, reset, status and slash commands.
+- `modules/Skin.lua`: addon-owned border, runes, fire, pulse and vignette.
+- `modules/Ping.lua`: callback-event registration and fixed-text toast/chat presentation.
+- `modules/Zoom.lua`: native wheel observation and one cancellable reset timer.
+- `Options.lua`: one session-lifetime Blizzard Settings category.
 
-`RothMinimap.lua` owns persistence, access helpers, deterministic mask policy, exact decorative alpha ownership, lifecycle coalescing, module application, reset, and slash commands.
+No generic event bus is used. Each feature owns its direct native signal and cleanup.
 
-Feature modules own their native signals directly:
-
-- `modules/Skin.lua`: combat events, addon-owned visual regions, geometry, fire ticker, pulse cleanup;
-- `modules/Ping.lua`: `MINIMAP_PING`, fixed notification, toast lifecycle;
-- `modules/Zoom.lua`: post-wheel hook, world/combat/hide cancellation, one reset timer;
-- `Options.lua`: session-lifetime Settings registrations and callback-suppressed refresh.
-
-No generic event bus rebroadcasts raw Blizzard tuples.
-
-## Load order
+## Presentation state
 
 ```text
-RothMinimap.toc
-  -> RothMinimap.lua
-  -> modules/Skin.lua
-  -> modules/Ping.lua
-  -> modules/Zoom.lua
-  -> Options.lua
+normal native minimap
+  -> optional square mask
+  -> exact decorative art hidden
+  -> addon skin visible
+
+Hybrid Minimap or indoor housing
+  -> known native default mask
+  -> exact decorative art restored
+  -> addon skin hidden
+  -> foreign MapCanvas/masks/overlays untouched
 ```
 
-`LoadSavedVariablesFirst` makes the schema migration available before the first file. Settings register only after migration.
-
-## Ownership graph
+## Lifecycle
 
 ```text
-Blizzard/Edit Mode
-  -> MinimapCluster position/size/settings
-  -> Minimap input and zoom step
-  -> native widgets and third-party buttons
+file load
+  -> schema-6 migration
+  -> module load
+  -> Settings registration
 
-Roth Minimap core
-  -> schema-6 ordinary preferences
-  -> Minimap mask selection
-  -> exact decorative alpha snapshots
-  -> coalesced addon-owned refresh
+PLAYER_ENTERING_WORLD / UI_SCALE_CHANGED
+  -> one coalesced full apply
+  -> refresh native-presentation reason
+  -> mask + exact art + modules
 
-feature modules
-  -> addon-created noninteractive art/toast
-  -> bounded owned timer/ticker
+EditMode.Exit / EditMode.SavedLayouts
+  -> one coalesced addon-geometry refresh
+
+combat-sensitive setting change
+  -> mark one pending full apply
+  -> immediately hide only disabled addon-owned visuals/timers
+  -> apply once on PLAYER_REGEN_ENABLED
 ```
 
-## Refresh topology
+## Security boundary
 
-```text
-PLAYER_ENTERING_WORLD -> one queued full apply
-UI_SCALE_CHANGED      -> one queued full revalidation/apply
-EditMode.Exit         -> same geometry queue
-EditMode.SavedLayouts -> same geometry queue
-combat restriction    -> one pending full/geometry flag
-PLAYER_REGEN_ENABLED  -> drain the latest pending state once
-```
+`MINIMAP_PING` uses `RegisterEventCallback`, not raw `RegisterEvent`. Every secret payload argument is ignored at the callback boundary.
 
-Equivalent requests share one zero-delay cancellable timer. Full apply upgrades a queued geometry-only request.
+No borrowed event payload, foreign frame, callback handle, timer, animation, or texture is persisted.
 
-## Persistence
+## Performance boundary
 
-Schema 6 repairs current data and migrates the pre-0.4 layout. Mutable defaults are copied, types/domains are validated, retired ownership fields are removed, and root/nested table identities are preserved.
+- fire ticker: 1–20 FPS, visible-only;
+- zoom: one cancellable timer;
+- lifecycle: one zero-delay coalescing timer;
+- frames/textures/animations: created once;
+- no frame-tree enumeration, `OnUpdate`, generic polling, or recursive timers.
 
-Settings callbacks are session lifetime. Reset performs one apply and broadcasts UI updates under a callback-suppression guard.
-
-## Evidence boundary
-
-Static and offline tests prove only the modeled code contracts. Client rendering, native lifecycle ordering, protected/taint behavior, hotfixes, and performance remain `NOT-RUN` until measured on a named client build.
+Live taint/rendering/profiler validation remains pending.

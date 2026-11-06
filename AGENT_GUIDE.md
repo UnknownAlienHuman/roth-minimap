@@ -1,81 +1,51 @@
 # Roth Minimap agent guide
 
-## Target
+## Contract
 
-Addon `0.4.2` · Retail 12.1.5 · Interface `120105` · selected Blizzard source `12.1.5.70688`. Source review and offline stubs do not imply a live-client PASS.
+Target Retail 12.1.5 / Interface `120105`. Addon version `0.4.3`, schema `6`, selected Blizzard source `12.1.5.70688`.
 
-## Ownership
+Blizzard/Edit Mode owns `MinimapCluster`, native input, native widget topology, Hybrid Minimap, housing overlays, and third-party buttons. Roth Minimap owns only its DB, deterministic Minimap mask policy, exact decorative-alpha mutations, and addon-created skin/ping/reset objects.
 
-Blizzard/Edit Mode owns `MinimapCluster` geometry, native input, child widgets, and third-party buttons. Roth Minimap owns only:
-
-- schema-6 SavedVariables;
-- the deterministic square/default mask policy;
-- alpha of the exact decorative allowlist;
-- addon-created skin, ping, and zoom-reset objects.
-
-Never restore ButtonBag, frame-tree discovery, foreign reparent/reanchor/method replacement, native geometry ownership, `MinimapBackdrop` mutation, secret ping inspection, a second wheel step, or `EnableMouseWheel` ownership.
-
-## Files
-
-- `RothMinimap.lua`: migration, access gates, exact art/mask application, coalesced lifecycle refresh, in-place reset, slash commands.
-- `modules/Skin.lua`: additive art and bounded visible-only animation.
-- `modules/Ping.lua`: direct `MINIMAP_PING` owner; tuple discarded at the event boundary.
-- `modules/Zoom.lua`: native-wheel observer and one reset timer.
-- `Options.lua`: one session-lifetime Settings category.
-- `tests/test_contracts_12_1_5.lua`: static ownership regression.
-- `tests/runtime_stubs_env.lua`: compact WoW/Settings/timer test environment.
-- `tests/test_runtime_stubs.lua`: offline behavior regression.
-
-There is no generic addon-local event bus. Each feature owns its native event frame so raw or secret-capable tuples never pass through a shared dispatcher.
-
-## Persistence
-
-The TOC uses `## LoadSavedVariablesFirst: 1`. Migration runs once before Settings registration.
-
-Schema 6 must preserve supported pre-0.4 preferences from:
+## Never restore
 
 ```text
-square / hideBlizzardArt / skinEnabled
-visual.border / visual.runes / visual.vignette
-fire
-ping
-zoom
+ButtonBag or generic minimap-button collector
+frame-tree discovery
+foreign SetParent / SetPoint / ClearAllPoints
+foreign method replacement
+native Minimap/MinimapCluster geometry ownership
+MinimapBackdrop alpha/visibility mutation
+raw RegisterEvent for CallbackEvent MINIMAP_PING
+MINIMAP_PING payload inspection
+second wheel zoom step
+EnableMouseWheel ownership
+recursive or uncancellable timers
+foreign HybridMinimap mask mutation
+foreign housing overlay mutation
 ```
 
-Do not replace `ns.db`, `ns.db.skin`, `ns.db.ping`, or `ns.db.zoom` after Settings registration. Reset them recursively in place. Suppress Settings callbacks while broadcasting `Settings.NotifyUpdate`, because `NotifyUpdate` triggers value-changed callbacks.
+## Native fallback
 
-## Geometry and draw order
+`C_Minimap.ShouldUseHybridMinimap()` and `C_Housing.IsInsideHouse()` are read-only mode gates. When either is true:
 
-Never store/apply native minimap position or size. Edit Mode refreshes addon-owned dimensions; world-entry and UI-scale signals coalesce a full mask/art/module revalidation.
+- use the known native default mask;
+- restore addon-owned decorative-alpha changes;
+- hide only addon-created skin regions;
+- do not inspect or mutate HybridMinimap/MapCanvas masks or housing descendants.
 
-If width/height/strata/level are inaccessible, skip the update or retain the last ordinary geometry. Do not guess.
-
-The skin frame follows the native Minimap strata and frame level. Never force `HIGH`/large frame levels that can cover native child controls. Addon-owned regions are noninteractive.
-
-## Decorative art
-
-Allowlist only:
-
-```text
-MinimapCompassTexture
-MinimapCluster.BorderTop
-```
-
-Snapshot an accessible ordinary alpha before mutation. On later apply, preserve the latest ordinary alpha before hiding again. Restore only while the current alpha still matches the addon-applied hidden value. Never mutate `MinimapBackdrop`.
+The cached mode is refreshed by full applies, including `PLAYER_ENTERING_WORLD` and `UI_SCALE_CHANGED`.
 
 ## Ping
 
-The direct event callback must ignore every `MINIMAP_PING` argument. It may emit fixed ordinary text or trigger addon-owned animation only. No name lookup, coordinate access, keying, logging, persistence, closure capture, or timer handoff.
+`MINIMAP_PING` is `CallbackEvent = true`, `SecretPayloads = true`. Register it with `Frame:RegisterEventCallback`; unregister with `Frame:UnregisterEventCallback`. Callback code must accept no payload use and call only fixed ordinary presentation.
 
-## Zoom
+## Persistence
 
-Blizzard performs the native wheel step. The addon hook observes the completed state and schedules/cancels one reset timer. Validate `GetZoomLevels() - 1`; never hard-code the ceiling or mutate native wheel enablement.
-
-Cancel reset work on disable, native hide, combat entry, and world transition. An unrelated settings apply must not cancel a valid pending reset.
+`## LoadSavedVariablesFirst: 1` allows one file-scope migration before Settings registration. Preserve the root and nested Settings tables on reset. Existing valid user colors/alpha values remain unchanged; tuned defaults affect new/reset databases only.
 
 ## Performance
 
-Allowed repeating work: one fire ticker, 1–20 FPS, only while effectively visible. Geometry invalidations coalesce into one zero-delay timer. Zoom owns at most one timer. No `OnUpdate`, polling, recursive retry, child-tree scan, or per-event snapshot allocation.
+One visible-only fire ticker, one zoom timer, and one coalesced refresh timer maximum. No `OnUpdate`, polling, tree scans, per-event timer fan-out, or retry loops.
 
 ## Verification
 
@@ -85,4 +55,4 @@ texlua tests/test_contracts_12_1_5.lua
 texlua tests/test_runtime_stubs.lua
 ```
 
-Live gates remain NOT-RUN until recorded with client build, addon commit/configuration, steps, output, and taint/error capture.
+Do not label source/offline checks as live runtime PASS.

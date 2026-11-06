@@ -1,17 +1,15 @@
-# Roth Minimap code index
+# Roth Minimap code index — 0.4.3
 
-Release `0.4.2` · Retail Interface `120105`.
-
-| Path | Responsibility |
+| Path | Owner |
 |---|---|
-| `RothMinimap.toc` | Retail 12.1.5 metadata and load order |
-| `RothMinimap.lua` | Schema 6 migration, access gates, exact mask/art ownership, lifecycle queue, module apply, in-place reset, slash commands |
-| `modules/Skin.lua` | Addon-owned art, native draw-order sync, visible-only fire ticker, deterministic pulse cleanup |
-| `modules/Ping.lua` | Direct opaque `MINIMAP_PING` owner and fixed toast/chat notification |
-| `modules/Zoom.lua` | Native wheel observation and one cancellable reset timer |
-| `Options.lua` | Vertical Settings category, ping destination dropdown, callback-suppressed refresh |
-| `tests/test_contracts_12_1_5.lua` | Static ownership and forbidden-pattern regression |
-| `tests/runtime_stubs_env.lua` | Compact offline WoW/Settings/timer environment used only by runtime tests |
-| `tests/test_runtime_stubs.lua` | Legacy/current migration, lifecycle, draw-order, ping, timer, combat, and reset behavior |
+| `RothMinimap.toc` | Retail metadata and load order |
+| `RothMinimap.lua` | Schema 6, access gates, hybrid/housing fallback, mask/art ownership, lifecycle, reset and commands |
+| `modules/Skin.lua` | Addon-owned Diablo presentation and bounded fire ticker |
+| `modules/Ping.lua` | `MINIMAP_PING` CallbackEvent and fixed ordinary notification |
+| `modules/Zoom.lua` | Native wheel observation and one reset timer |
+| `Options.lua` | Blizzard vertical Settings controls |
+| `tests/test_contracts_12_1_5.lua` | Static contract regression |
+| `tests/runtime_stubs_env.lua` | Offline WoW API stubs |
+| `tests/test_runtime_stubs.lua` | Migration, callback, fallback, timer and reset behavior |
 
-Removed subsystems remain removed: ButtonBag, AddonCompartment diagnostics, native geometry ownership, and foreign-widget mutation.
+Retired and forbidden: ButtonBag, AddonCompartment diagnostics, foreign reparenting, native geometry ownership, raw ping payload routing, and recursive zoom.

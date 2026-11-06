@@ -36,6 +36,14 @@ local function SetColor(texture, color)
   )
 end
 
+local function PresentationEnabled()
+  local db = ns.db and ns.db.skin
+  return db
+    and ns.db.enabled
+    and db.enabled
+    and not (type(ns.UsesNativePresentation) == "function" and ns.UsesNativePresentation())
+end
+
 local function IsEffectivelyVisible()
   return frame
     and U.SafeGet(frame, "IsVisible") == true
@@ -70,7 +78,7 @@ end
 
 local function FireEnabled()
   local db = ns.db and ns.db.skin
-  return db and ns.db.enabled and db.enabled and db.fire
+  return PresentationEnabled() and db.fire
 end
 
 local function StartFireTicker()
@@ -189,6 +197,10 @@ local function Ensure()
 end
 
 function M:UpdateGeometry()
+  if not PresentationEnabled() then
+    self:Disable()
+    return true
+  end
   if not Ensure() then return false end
   if type(InCombatLockdown) == "function" and InCombatLockdown() then return false end
   if not SyncDrawOrder() then return false end
@@ -212,9 +224,7 @@ end
 
 function M:Apply()
   local db = ns.db and ns.db.skin
-  local enabled = ns.db and ns.db.enabled and db and db.enabled
-
-  if not enabled then
+  if not PresentationEnabled() then
     self:Disable()
     return true
   end
@@ -241,7 +251,7 @@ end
 function M:ApplySafeState()
   if not frame then return true end
   local db = ns.db and ns.db.skin
-  if not (ns.db and ns.db.enabled and db and db.enabled) then
+  if not PresentationEnabled() then
     self:Disable()
     return true
   end

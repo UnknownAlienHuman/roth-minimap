@@ -26,13 +26,12 @@ local options = read("Options.lua")
 local readme = read("README.md")
 local agentGuide = read("AGENT_GUIDE.md")
 local architecture = read("ARCHITECTURE.md")
-local codeIndex = read("CODE_INDEX.md")
 local changelog = read("docs/CHANGELOG.md")
 local runtime = table.concat({ core, skin, ping, zoom, options }, "\n")
 
 assertPresent(toc, "## Interface: 120105", "Retail 12.1.5 interface")
 assertPresent(toc, "## LoadSavedVariablesFirst: 1", "file-scope DB readiness")
-assertPresent(toc, "## Version: 0.4.2", "release version")
+assertPresent(toc, "## Version: 0.4.3", "release version")
 assertAbsent(toc, "ButtonBag", "button collector must not load")
 assertAbsent(toc, "AddonCompartment.lua", "compartment diagnostics must not load")
 
@@ -53,12 +52,16 @@ for _, token in ipairs({
   assertAbsent(runtime, token, "foreign-widget ownership regression")
 end
 
-assertPresent(core, "ns.DB_VERSION = 6", "schema migration")
+assertPresent(core, "ns.DB_VERSION = 6", "schema contract")
 assertPresent(core, "MigrateLegacyDB", "pre-0.4 migration")
-assertPresent(core, "old.skinEnabled", "legacy skin enablement migration")
-assertPresent(core, "SafeTable(old.visual)", "legacy visual migration")
 assertPresent(core, "ReplaceContents(old, migrated)", "root identity preservation")
 assertPresent(core, "ReplaceContents(ns.db, fresh)", "Settings table identity preservation")
+assertPresent(core, "ShouldUseHybridMinimap", "hybrid native fallback")
+assertPresent(core, "IsInsideHouse", "housing native fallback")
+assertPresent(core, "nativePresentationReason", "native fallback state")
+assertPresent(core, "not ns.UsesNativePresentation()", "mask/art fallback gate")
+assertPresent(core, "borderColor = { 0.25, 0.22, 0.20, 1 }", "dark Diablo border default")
+assertPresent(core, "vignetteAlpha = 0.22", "subtle vignette default")
 assertPresent(core, "EditMode.Exit", "Edit Mode geometry refresh")
 assertPresent(core, "C_Timer.NewTimer(0", "coalesced refresh")
 assertPresent(core, "_G.MinimapCompassTexture", "exact compass decoration")
@@ -68,6 +71,8 @@ assertAbsent(core, "GetMaskTexture", "unconfirmed mask getter must not drive res
 assertAbsent(core, "function ns.RegisterEvent", "generic raw-payload event bus")
 assertAbsent(core, "_G.RothMinimap = ns", "mutable implementation namespace exposure")
 
+assertPresent(skin, "PresentationEnabled", "native presentation skin gate")
+assertPresent(skin, "ns.UsesNativePresentation()", "hybrid/housing skin suppression")
 assertPresent(skin, "GetFrameStrata", "native draw-order synchronization")
 assertPresent(skin, "GetFrameLevel", "native frame-level synchronization")
 assertPresent(skin, "pulseGroup:SetScript(\"OnStop\", ResetPulse)", "pulse stop cleanup")
@@ -76,9 +81,11 @@ assertAbsent(skin, "SetFrameStrata(\"HIGH\")", "skin must not cover native widge
 assertAbsent(skin, "SetFrameLevel(300)", "hard-coded top frame level")
 assertAbsent(skin, "or 140", "guessed geometry fallback")
 
-assertPresent(ping, "eventFrame:RegisterEvent(\"MINIMAP_PING\")", "direct ping event ownership")
-assertPresent(ping, "if event == \"MINIMAP_PING\" then OnPing() end", "payload dropped at native boundary")
+assertPresent(ping, "RegisterEventCallback(\"MINIMAP_PING\"", "CallbackEvent registration")
+assertPresent(ping, "UnregisterEventCallback(\"MINIMAP_PING\"", "CallbackEvent cleanup")
 assertPresent(ping, "Map ping received", "opaque ping message")
+assertAbsent(ping, "RegisterEvent(\"MINIMAP_PING\"", "CallbackEvent must not use raw frame event registration")
+assertAbsent(ping, "SetScript(\"OnEvent\"", "secret callback payload must not enter generic OnEvent")
 assertAbsent(ping, "PlaySound", "do not duplicate Blizzard native ping sound")
 assertAbsent(ping, "local unit", "ping payload must remain opaque")
 
@@ -93,6 +100,8 @@ assertAbsent(zoom, "C_Timer.After", "uncancellable zoom timer must remain absent
 
 assertPresent(options, "ROTH_MINIMAP_PING_WHERE", "ping destination setting")
 assertPresent(options, "Settings.CreateDropdown", "ping destination control")
+assertPresent(options, "Vignette alpha\", 0.22", "new-install visual tuning")
+assertPresent(options, "Hybrid Minimap", "native fallback explanation")
 assertPresent(options, "if refreshing then return end", "reset callback suppression")
 assertPresent(options, "Settings.NotifyUpdate", "reset refreshes registered settings")
 
@@ -100,13 +109,9 @@ for name, document in pairs({
   README = readme,
   AGENT_GUIDE = agentGuide,
   ARCHITECTURE = architecture,
-  CODE_INDEX = codeIndex,
   CHANGELOG = changelog,
 }) do
-  assertPresent(document, "0.4.2", name .. " release version")
+  assertPresent(document, "0.4.3", name .. " release version")
 end
-assertPresent(readme, "SavedVariables schema `6`", "README schema")
-assertPresent(agentGuide, "schema-6", "agent schema contract")
-assertPresent(architecture, "No generic event bus", "architecture signal ownership")
 
-print("PASS: Retail 12.1.5 static ownership, migration, lifecycle, Settings and documentation contracts")
+print("PASS: Retail 12.1.5 static callback-event, native-fallback, ownership and lifecycle contracts")

@@ -1,10 +1,10 @@
 -- Roth Minimap core for Retail 12.1.5.
 -- Blizzard/Edit Mode owns native minimap geometry, input and child widgets.
 
-local _, ns = ...
+local ADDON_NAME, ns = ...
 ns = ns or {}
 
-ns.VERSION = "0.4.2"
+ns.VERSION = "0.4.3"
 ns.DB_VERSION = 6
 ns.media = "Interface\\AddOns\\RothMinimap\\media\\"
 
@@ -23,9 +23,9 @@ local DEFAULTS = {
     runes = false,
     vignette = true,
     fire = true,
-    borderColor = { 1, 1, 1, 1 },
+    borderColor = { 0.25, 0.22, 0.20, 1 },
     runesColor = { 1, 0.35, 0.12, 0.20 },
-    vignetteAlpha = 0.40,
+    vignetteAlpha = 0.22,
     fireIdleAlpha = 0.14,
     fireCombatAlpha = 0.42,
     fireFPS = 8,
@@ -201,7 +201,6 @@ local function SanitizeDB(db)
   db.zoom.autoReset = SafeBoolean(db.zoom.autoReset) ~= false
   db.zoom.delay = Clamp(db.zoom.delay, DEFAULTS.zoom.delay, 1, 10)
 
-  -- Retired pre-0.4 ownership and duplicated settings.
   db.buttons = nil
   db.position = nil
   db.mover = nil
@@ -282,11 +281,7 @@ local function MigrateLegacyDB(old)
     if runes then
       local runesEnabled = SafeBoolean(runes.enabled)
       if runesEnabled ~= nil then migrated.skin.runes = runesEnabled end
-      migrated.skin.runesColor = CopyColor(
-        runes.color,
-        migrated.skin.runesColor,
-        FirstNumber(runes.outAlpha, runes.alpha)
-      )
+      migrated.skin.runesColor = CopyColor(runes.color, migrated.skin.runesColor, FirstNumber(runes.outAlpha, runes.alpha))
     end
 
     local vignette = SafeTable(visual.vignette)
@@ -374,6 +369,26 @@ local function CallModule(moduleName, methodName)
   return result ~= false
 end
 
+local function ReadNamespaceBoolean(namespace, methodName)
+  if type(namespace) ~= "table" then return false end
+  local method = namespace[methodName]
+  if type(method) ~= "function" then return false end
+  local ok, value = pcall(method)
+  return ok and SafeBoolean(value) == true
+end
+
+local nativePresentationReason
+
+local function DetectNativePresentation()
+  if ReadNamespaceBoolean(_G.C_Minimap, "ShouldUseHybridMinimap") then return "hybrid" end
+  if ReadNamespaceBoolean(_G.C_Housing, "IsInsideHouse") then return "housing" end
+  return nil
+end
+
+function ns.UsesNativePresentation()
+  return nativePresentationReason ~= nil
+end
+
 local artState = setmetatable({}, { __mode = "k" })
 
 local function SetDecorativeHidden(object, hidden)
@@ -404,7 +419,7 @@ local function SetDecorativeHidden(object, hidden)
 end
 
 local function ApplyBlizzardArt()
-  local hidden = ns.db.enabled and ns.db.hideBlizzardArt
+  local hidden = ns.db.enabled and ns.db.hideBlizzardArt and not ns.UsesNativePresentation()
   local okCompass = SetDecorativeHidden(_G.MinimapCompassTexture, hidden)
   local cluster = _G.MinimapCluster
   local okTop = SetDecorativeHidden(cluster and cluster.BorderTop, hidden)
@@ -413,8 +428,8 @@ end
 
 local function ApplyMask()
   if not CanUseObject(_G.Minimap) then return false end
-  local texture = ns.db.enabled and ns.db.squareMask and SQUARE_MASK or DEFAULT_MASK
-  return SafeCall(Minimap, "SetMaskTexture", texture)
+  local useSquare = ns.db.enabled and ns.db.squareMask and not ns.UsesNativePresentation()
+  return SafeCall(Minimap, "SetMaskTexture", useSquare and SQUARE_MASK or DEFAULT_MASK)
 end
 
 local function ApplyModules()
@@ -445,8 +460,9 @@ local function CancelRefreshTimer()
 end
 
 local function RefreshOwnedGeometry()
-  if not (ns.db.enabled and ns.db.skin and ns.db.skin.enabled) then
+  if ns.UsesNativePresentation() or not (ns.db.enabled and ns.db.skin and ns.db.skin.enabled) then
     pendingGeometryRefresh = false
+    CallModule("skin", "ApplySafeState")
     return true
   end
   if IsCombatLocked() then
@@ -458,6 +474,8 @@ local function RefreshOwnedGeometry()
 end
 
 function ns.ApplyAll()
+  nativePresentationReason = DetectNativePresentation()
+
   if IsCombatLocked() then
     pendingFullApply = true
     ApplyOwnedSafeState()
@@ -479,11 +497,7 @@ local function RunQueuedRefresh()
   refreshTimer = nil
   local fullApply = refreshNeedsFullApply
   refreshNeedsFullApply = false
-  if fullApply then
-    ns.ApplyAll()
-  else
-    RefreshOwnedGeometry()
-  end
+  if fullApply then ns.ApplyAll() else RefreshOwnedGeometry() end
 end
 
 function ns.QueueRefresh(fullApply)
@@ -513,11 +527,13 @@ function ns.GetStatus()
     squareMask = ns.db.squareMask,
     hideBlizzardArt = ns.db.hideBlizzardArt,
     zoomReset = ns.db.zoom.autoReset,
+    nativePresentation = nativePresentationReason,
     pendingApply = pendingFullApply or pendingGeometryRefresh,
   }
 end
 
 local editModeCallbacksRegistered = false
+
 local function RegisterEditModeCallbacks()
   if editModeCallbacksRegistered then return end
   if not EventRegistry or type(EventRegistry.RegisterCallback) ~= "function" then return end
@@ -534,16 +550,10 @@ coreEvents:RegisterEvent("UI_SCALE_CHANGED")
 coreEvents:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
     RegisterEditModeCallbacks()
-  elseif event == "PLAYER_ENTERING_WORLD" then
-    ns.QueueRefresh(true)
-  elseif event == "UI_SCALE_CHANGED" then
+  elseif event == "PLAYER_ENTERING_WORLD" or event == "UI_SCALE_CHANGED" then
     ns.QueueRefresh(true)
   elseif event == "PLAYER_REGEN_ENABLED" then
-    if pendingFullApply then
-      ns.ApplyAll()
-    elseif pendingGeometryRefresh then
-      RefreshOwnedGeometry()
-    end
+    if pendingFullApply then ns.ApplyAll() elseif pendingGeometryRefresh then RefreshOwnedGeometry() end
   end
 end)
 
@@ -564,11 +574,12 @@ SlashCmdList.ROTHMINIMAP = function(message)
   elseif message == "status" then
     local status = ns.GetStatus()
     print(string.format(
-      "Roth Minimap %s: enabled=%s square=%s hideArt=%s geometry=Blizzard Edit Mode zoomReset=%s pending=%s",
+      "Roth Minimap %s: enabled=%s square=%s hideArt=%s native=%s zoomReset=%s pending=%s",
       status.version,
       tostring(status.enabled),
       tostring(status.squareMask),
       tostring(status.hideBlizzardArt),
+      status.nativePresentation or "no",
       tostring(status.zoomReset),
       tostring(status.pendingApply)
     ))

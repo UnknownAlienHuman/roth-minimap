@@ -1,61 +1,253 @@
-local frames,timers,tickers={}, {}, {}
-local combat=false
-canaccessvalue=function(v)return not(type(v)=="table" and rawget(v,"__bad"))end
-canaccesstable=canaccessvalue
-InCombatLockdown=function()return combat end
-DEFAULT_CHAT_FRAME={AddMessage=function()end}; SlashCmdList={}
+local frames, timers, tickers = {}, {}, {}
+local combat, hybrid, housing = false, false, false
 
-local function animGroup(owner)
-  local g={owner=owner,scripts={},playing=false}
-  function g:CreateAnimation() local a={values={}};return setmetatable(a,{__index=function(t,k)return function(_,v)t.values[k]=v end end}) end
-  function g:SetScript(k,v)self.scripts[k]=v end
-  function g:Play()self.playing=true;if self.scripts.OnPlay then self.scripts.OnPlay(self)end end
-  function g:Stop()self.playing=false;if self.scripts.OnStop then self.scripts.OnStop(self)end end
-  return g
+canaccessvalue = function(value)
+  return not (type(value) == "table" and rawget(value, "__bad"))
 end
+canaccesstable = canaccessvalue
+InCombatLockdown = function() return combat end
+DEFAULT_CHAT_FRAME = { messages = {}, AddMessage = function(self, message) self.messages[#self.messages + 1] = message end }
+SlashCmdList = {}
+
+local function animationGroup(owner)
+  local group = { owner = owner, scripts = {}, playing = false }
+  function group:CreateAnimation()
+    local animation = { values = {} }
+    return setmetatable(animation, {
+      __index = function(tableValue, key)
+        return function(_, value) tableValue.values[key] = value end
+      end,
+    })
+  end
+  function group:SetScript(key, value) self.scripts[key] = value end
+  function group:Play()
+    self.playing = true
+    if self.scripts.OnPlay then self.scripts.OnPlay(self) end
+  end
+  function group:Stop()
+    local wasPlaying = self.playing
+    self.playing = false
+    if self.scripts.OnStop and wasPlaying then self.scripts.OnStop(self) end
+  end
+  function group:Finish()
+    self.playing = false
+    if self.scripts.OnFinished then self.scripts.OnFinished(self) end
+  end
+  return group
+end
+
 local function object(parent)
-  local o={parent=parent,scripts={},hooks={},events={},textures={},shown=true,alpha=1,width=0,height=0,strata="MEDIUM",level=0}
-  function o:CanBeAccessedInContext()return true end; function o:IsForbidden()return false end
-  function o:RegisterEvent(e)self.events[e]=true end; function o:UnregisterEvent(e)self.events[e]=nil end
-  function o:SetScript(k,v)self.scripts[k]=v end
-  function o:HookScript(k,v)local h=self.hooks[k]or{};h[#h+1]=v;self.hooks[k]=h end
-  function o:RunScript(k,...)if self.scripts[k]then self.scripts[k](self,...)end;for _,f in ipairs(self.hooks[k]or{})do f(self,...)end end
-  function o:EnableMouse(v)self.mouse=v end; function o:SetPoint(...)self.point={...}end; function o:SetAllPoints(v)self.all=v or true end
-  function o:SetSize(w,h)self.width,self.height=w,h end; function o:GetWidth()return self.width end; function o:GetHeight()return self.height end
-  function o:SetFrameStrata(v)self.strata=v end; function o:GetFrameStrata()return self.strata end
-  function o:SetFrameLevel(v)self.level=v end; function o:GetFrameLevel()return self.level end
-  function o:SetAlpha(v)self.alpha=v end; function o:GetAlpha()return self.alpha end
-  function o:SetShown(v)if v then self:Show()else self:Hide()end end
-  function o:Show()if not self.shown then self.shown=true;self:RunScript("OnShow")end end
-  function o:Hide()if self.shown then self.shown=false;self:RunScript("OnHide")end end
-  function o:IsShown()return self.shown end; function o:IsVisible()return self.shown and(not self.parent or self.parent:IsVisible())end
-  function o:SetBackdrop(v)self.backdrop=v end; function o:SetBackdropColor(...)self.bg={...}end; function o:SetBackdropBorderColor(...)self.edge={...}end
-  function o:CreateAnimationGroup()return animGroup(self)end
-  return o
+  local value = {
+    parent = parent,
+    scripts = {},
+    hooks = {},
+    events = {},
+    eventCallbacks = {},
+    textures = {},
+    shown = true,
+    alpha = 1,
+    width = 0,
+    height = 0,
+    strata = "MEDIUM",
+    level = 0,
+  }
+
+  function value:CanBeAccessedInContext() return true end
+  function value:IsForbidden() return false end
+  function value:RegisterEvent(event) self.events[event] = true end
+  function value:UnregisterEvent(event) self.events[event] = nil end
+  function value:RegisterEventCallback(event, callback) self.eventCallbacks[event] = callback end
+  function value:UnregisterEventCallback(event) self.eventCallbacks[event] = nil end
+  function value:SetScript(script, callback) self.scripts[script] = callback end
+  function value:HookScript(script, callback)
+    local hooks = self.hooks[script] or {}
+    hooks[#hooks + 1] = callback
+    self.hooks[script] = hooks
+  end
+  function value:RunScript(script, ...)
+    if self.scripts[script] then self.scripts[script](self, ...) end
+    for _, callback in ipairs(self.hooks[script] or {}) do callback(self, ...) end
+  end
+  function value:EnableMouse(enabled) self.mouse = enabled end
+  function value:SetPoint(...) self.point = { ... } end
+  function value:SetAllPoints(target) self.allPoints = target or true end
+  function value:SetSize(width, height) self.width, self.height = width, height end
+  function value:GetWidth() return self.width end
+  function value:GetHeight() return self.height end
+  function value:SetFrameStrata(strata) self.strata = strata end
+  function value:GetFrameStrata() return self.strata end
+  function value:SetFrameLevel(level) self.level = level end
+  function value:GetFrameLevel() return self.level end
+  function value:SetAlpha(alpha) self.alpha = alpha end
+  function value:GetAlpha() return self.alpha end
+  function value:SetShown(shown) if shown then self:Show() else self:Hide() end end
+  function value:Show()
+    if not self.shown then
+      self.shown = true
+      self:RunScript("OnShow")
+    end
+  end
+  function value:Hide()
+    if self.shown then
+      self.shown = false
+      self:RunScript("OnHide")
+    end
+  end
+  function value:IsShown() return self.shown end
+  function value:IsVisible()
+    return self.shown and (not self.parent or self.parent:IsVisible())
+  end
+  function value:SetBackdrop(backdrop) self.backdrop = backdrop end
+  function value:SetBackdropColor(...) self.backdropColor = { ... } end
+  function value:SetBackdropBorderColor(...) self.backdropBorderColor = { ... } end
+  function value:CreateAnimationGroup() return animationGroup(self) end
+
+  return value
 end
-local function texture(parent)local t=object(parent);function t:SetTexture(v)self.texture=v end;function t:SetBlendMode(v)self.blend=v end;function t:SetVertexColor(...)self.color={...}end;function t:SetTexCoord(...)self.coord={...}end;parent.textures[#parent.textures+1]=t;return t end
-CreateFrame=function(_,_,parent)local f=object(parent);function f:CreateTexture()return texture(self)end;function f:CreateFontString()local s=object(self);function s:SetText(v)self.text=v end;return s end;frames[#frames+1]=f;return f end
-local function event(name,... )for _,f in ipairs(frames)do if f.events[name]and f.scripts.OnEvent then f.scripts.OnEvent(f,name,...)end end end
-EventRegistry={RegisterCallback=function(_,n,cb,owner)EventRegistry[n]={cb=cb,owner=owner}end}
-C_Timer={
- NewTimer=function(d,cb)local t={delay=d,callback=cb};function t:Cancel()self.cancelled=true end;timers[#timers+1]=t;return t end,
- NewTicker=function(d,cb)local t={interval=d,callback=cb};function t:Cancel()self.cancelled=true end;tickers[#tickers+1]=t;return t end,
+
+local function texture(parent)
+  local value = object(parent)
+  function value:SetTexture(asset) self.texture = asset end
+  function value:SetBlendMode(mode) self.blendMode = mode end
+  function value:SetVertexColor(...) self.vertexColor = { ... } end
+  function value:SetTexCoord(...) self.texCoord = { ... } end
+  parent.textures[#parent.textures + 1] = value
+  return value
+end
+
+CreateFrame = function(_, _, parent)
+  local frame = object(parent)
+  function frame:CreateTexture() return texture(self) end
+  function frame:CreateFontString()
+    local fontString = object(self)
+    function fontString:SetText(text) self.text = text end
+    return fontString
+  end
+  frames[#frames + 1] = frame
+  return frame
+end
+
+local function fireEvent(event, ...)
+  for _, frame in ipairs(frames) do
+    if frame.events[event] and frame.scripts.OnEvent then
+      frame.scripts.OnEvent(frame, event, ...)
+    end
+    local callback = frame.eventCallbacks[event]
+    if callback then callback(frame, ...) end
+  end
+end
+
+local function hasRawEvent(event)
+  for _, frame in ipairs(frames) do
+    if frame.events[event] then return true end
+  end
+  return false
+end
+
+local function hasCallbackEvent(event)
+  for _, frame in ipairs(frames) do
+    if frame.eventCallbacks[event] then return true end
+  end
+  return false
+end
+
+EventRegistry = {
+  RegisterCallback = function(_, event, callback, owner)
+    EventRegistry[event] = { callback = callback, owner = owner }
+  end,
 }
-local settings={}
-Settings={VarType={Boolean="boolean",Number="number",String="string"},
- RegisterVerticalLayoutCategory=function()return{GetID=function()return 1 end}end,
- RegisterAddOnSetting=function(_,var,key,tbl,typ,_,default)if tbl[key]==nil then tbl[key]=default end;local s={var=var,key=key,tbl=tbl,typ=typ};function s:SetValueChangedCallback(cb)self.cb=cb end;function s:NotifyUpdate()if self.cb then self.cb(self,self.tbl[self.key])end end;settings[var]=s;return s end,
- CreateCheckbox=function()end,CreateSlider=function()end,CreateSliderOptions=function()return{}end,
- CreateControlTextContainer=function()local c={data={}};function c:Add(v,l)self.data[#self.data+1]={value=v,label=l}end;function c:GetData()return self.data end;return c end,
- CreateDropdown=function(_,s,get)s.options=get()end,RegisterAddOnCategory=function()end,OpenToCategory=function()end,
- NotifyUpdate=function(v)if settings[v]then settings[v]:NotifyUpdate()end end}
-EventUtil={ContinueOnAddOnLoaded=function(_,cb)cb()end};geterrorhandler=function()return function(e)error(e,0)end end
 
-Minimap=object();Minimap.width=198;Minimap.height=198;Minimap.strata="LOW";Minimap.level=10;Minimap.zoom=0;Minimap.zoomLevels=6
-function Minimap:SetMaskTexture(v)self.mask=v end;function Minimap:GetZoom()return self.zoom end;function Minimap:GetZoomLevels()return self.zoomLevels end;function Minimap:SetZoom(v)self.zoom=v end;function Minimap:CreateTexture()return texture(self)end
-local function alpha(v)local o=object();o.alpha=v;return o end
-MinimapCompassTexture=alpha(.8);MinimapBackdrop=alpha(.7);MinimapCluster={BorderTop=alpha(.6)}
-local native=object(Minimap);native.level=11
+C_Timer = {
+  NewTimer = function(delay, callback)
+    local timer = { delay = delay, callback = callback, cancelled = false }
+    function timer:Cancel() self.cancelled = true end
+    timers[#timers + 1] = timer
+    return timer
+  end,
+  NewTicker = function(interval, callback)
+    local ticker = { interval = interval, callback = callback, cancelled = false }
+    function ticker:Cancel() self.cancelled = true end
+    tickers[#tickers + 1] = ticker
+    return ticker
+  end,
+}
 
+local settings = {}
+Settings = {
+  VarType = { Boolean = "boolean", Number = "number", String = "string" },
+  RegisterVerticalLayoutCategory = function()
+    return { GetID = function() return 1 end }
+  end,
+  RegisterAddOnSetting = function(_, variable, key, tableRef, valueType, _, defaultValue)
+    if tableRef[key] == nil then tableRef[key] = defaultValue end
+    local setting = { variable = variable, key = key, tableRef = tableRef, valueType = valueType }
+    function setting:SetValueChangedCallback(callback) self.callback = callback end
+    function setting:NotifyUpdate()
+      if self.callback then self.callback(self, self.tableRef[self.key]) end
+    end
+    settings[variable] = setting
+    return setting
+  end,
+  CreateCheckbox = function() end,
+  CreateSlider = function() end,
+  CreateSliderOptions = function() return {} end,
+  CreateControlTextContainer = function()
+    local container = { data = {} }
+    function container:Add(value, label)
+      self.data[#self.data + 1] = { value = value, label = label }
+    end
+    function container:GetData() return self.data end
+    return container
+  end,
+  CreateDropdown = function(_, setting, getOptions) setting.options = getOptions() end,
+  RegisterAddOnCategory = function() end,
+  OpenToCategory = function() end,
+  NotifyUpdate = function(variable)
+    if settings[variable] then settings[variable]:NotifyUpdate() end
+  end,
+}
 
-return {event=event,timers=timers,tickers=tickers,settings=settings,native=native,setCombat=function(v)combat=v end}
+EventUtil = { ContinueOnAddOnLoaded = function(_, callback) callback() end }
+geterrorhandler = function() return function(message) error(message, 0) end end
+
+Minimap = object()
+Minimap.width = 198
+Minimap.height = 198
+Minimap.strata = "LOW"
+Minimap.level = 10
+Minimap.zoom = 0
+Minimap.zoomLevels = 6
+function Minimap:SetMaskTexture(asset) self.mask = asset end
+function Minimap:GetZoom() return self.zoom end
+function Minimap:GetZoomLevels() return self.zoomLevels end
+function Minimap:SetZoom(value) self.zoom = value end
+function Minimap:CreateTexture() return texture(self) end
+
+local function alphaObject(alpha)
+  local value = object()
+  value.alpha = alpha
+  return value
+end
+
+MinimapCompassTexture = alphaObject(0.8)
+MinimapBackdrop = alphaObject(0.7)
+MinimapCluster = { BorderTop = alphaObject(0.6) }
+
+C_Minimap = { ShouldUseHybridMinimap = function() return hybrid end }
+C_Housing = { IsInsideHouse = function() return housing end }
+
+local nativeWidget = object(Minimap)
+nativeWidget.level = 11
+
+return {
+  event = fireEvent,
+  timers = timers,
+  tickers = tickers,
+  settings = settings,
+  native = nativeWidget,
+  hasRawEvent = hasRawEvent,
+  hasCallbackEvent = hasCallbackEvent,
+  setCombat = function(value) combat = value end,
+  setHybrid = function(value) hybrid = value end,
+  setHousing = function(value) housing = value end,
+}

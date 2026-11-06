@@ -1,30 +1,29 @@
 # Changelog
 
-## 0.4.2 — second-pass Retail 12.1.5 audit
+## 0.4.3 — callback-event and native-mode hardening
 
-- Replaced the shared raw-payload event bus with direct feature-owned native event frames.
-- Added a complete schema-6 migration for pre-0.4 `square`, `skinEnabled`, `visual`, `fire`, ping, and zoom preferences.
-- Preserved SavedVariables root/nested identities for both migration and reset.
-- Prevented Settings reset from triggering one full addon apply per notified control.
-- Restored the missing ping destination control (`toast` / `chat`).
-- Synchronized the skin to native Minimap strata/level instead of forcing `HIGH` / frame level `300` above Blizzard widgets.
-- Added deterministic pulse cleanup on animation stop, finish, hide, and disable.
-- Stopped/hid fire immediately when the owned feature is disabled during a deferred combat apply.
-- Coalesced world/Edit Mode/UI-scale refreshes and skipped geometry creation while the addon/skin is disabled.
-- Improved decorative alpha ownership: require an ordinary snapshot, preserve a newer ordinary alpha, and restore only the addon-applied hidden state.
-- Kept a pending zoom reset across unrelated settings applies; cancel it on world transition, combat, native hide, or disable.
-- Expanded offline tests to cover legacy/current migration, secret ping tuples, native draw order, ticker/pulse cleanup, combat deferral, refresh coalescing, and single-apply reset.
+- Registered secret `MINIMAP_PING` through `RegisterEventCallback`/`UnregisterEventCallback` instead of raw frame-event registration.
+- Added automatic native-presentation fallback for Blizzard Hybrid Minimap and indoor housing.
+- Native fallback restores the default mask and exact decorative alpha, hides only addon-owned skin regions, and never mutates foreign MapCanvas masks or housing overlays.
+- Added the active native mode to `/rmmap status`.
+- Tuned new/reset defaults to a dark Diablo border and subtler `0.22` vignette; existing valid user values are preserved.
+- Expanded offline stubs and regressions for callback-event ownership, secret payload opacity, hybrid/housing transitions, native-art restoration and fallback recovery.
 
-## 0.4.1 — initial Retail 12.1.5 update
+## 0.4.2 — second ownership and lifecycle audit
 
-- Updated Interface to `120105` and selected source baseline to `12.1.5.70688`.
-- Removed whole-`MinimapBackdrop` mutation, duplicate wheel zoom, duplicate ping sound, hard-coded zoom ceiling, guessed geometry fallback, and stale ButtonBag-era files/assets.
-- Added deterministic mask policy, exact decorative allowlist, native-wheel reset, and initial static/offline tests.
+- Removed the generic raw-payload event bus.
+- Added complete pre-0.4 migration and in-place reset.
+- Added ping-destination dropdown.
+- Hardened combat deferral, draw order, pulse cleanup and documentation parity.
+
+## 0.4.1 — Retail 12.1.5 contract update
+
+- Updated Interface to `120105`.
+- Fixed module clamp semantics, exact decorative ownership, hidden ticker cleanup and duplicate wheel zoom.
+- Removed stale ButtonBag-era documentation and unused media.
 
 ## 0.4.0 — ownership rewrite
 
 - Removed ButtonBag and AddonCompartment diagnostics.
-- Returned MinimapCluster geometry and every functional/native/third-party widget to Blizzard/Edit Mode ownership.
-- Kept only additive mask, skin, opaque ping, and bounded zoom-reset behavior.
-
-Pre-0.4 experimental history remains available in Git history and is not valid current implementation guidance.
+- Returned native geometry/widgets/buttons to Blizzard/Edit Mode.
+- Kept only additive mask, skin, opaque ping and bounded zoom behavior.

@@ -95,17 +95,18 @@ local function RegisterSettings()
   Checkbox(category, ns.db, "ROTH_MINIMAP_ENABLED", "enabled", "Enabled", true,
     "Enable the square mask, additive art, ping notification, and optional zoom reset.")
   Checkbox(category, ns.db, "ROTH_MINIMAP_SQUARE", "squareMask", "Square minimap mask", true,
-    "Change only the Minimap mask. Blizzard Edit Mode remains the position and size owner.")
+    "Change only the native Minimap mask. Hybrid Minimap and indoor housing keep Blizzard's native presentation.")
   Checkbox(category, ns.db, "ROTH_MINIMAP_HIDE_ART", "hideBlizzardArt", "Hide decorative Blizzard border art", true,
     "Hide only the selected-source compass texture and top-border decoration. Functional MinimapBackdrop descendants remain untouched.")
 
-  Checkbox(category, ns.db.skin, "ROTH_MINIMAP_SKIN", "enabled", "Diablo skin", true)
+  Checkbox(category, ns.db.skin, "ROTH_MINIMAP_SKIN", "enabled", "Diablo skin", true,
+    "The additive skin automatically yields to Blizzard's Hybrid Minimap and indoor housing presentation.")
   Checkbox(category, ns.db.skin, "ROTH_MINIMAP_BORDER", "border", "Border", true)
   Checkbox(category, ns.db.skin, "ROTH_MINIMAP_RUNES", "runes", "Runes", false)
   Checkbox(category, ns.db.skin, "ROTH_MINIMAP_VIGNETTE", "vignette", "Inner vignette", true)
   Checkbox(category, ns.db.skin, "ROTH_MINIMAP_FIRE", "fire", "Animated fire", true,
     "The bounded fire ticker runs only while the native minimap and addon skin are visible.")
-  Slider(category, ns.db.skin, "ROTH_MINIMAP_VIGNETTE_ALPHA", "vignetteAlpha", "Vignette alpha", 0.40, 0, 1, 0.05)
+  Slider(category, ns.db.skin, "ROTH_MINIMAP_VIGNETTE_ALPHA", "vignetteAlpha", "Vignette alpha", 0.22, 0, 1, 0.05)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_IDLE", "fireIdleAlpha", "Idle fire alpha", 0.14, 0, 1, 0.05)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_COMBAT", "fireCombatAlpha", "Combat fire alpha", 0.42, 0, 1, 0.05)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_FPS", "fireFPS", "Fire frames per second", 8, 1, 20, 1)

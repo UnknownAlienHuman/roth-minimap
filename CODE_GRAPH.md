@@ -1,34 +1,20 @@
-# Roth Minimap code graph
+# Roth Minimap code graph — 0.4.3
 
 ```mermaid
 flowchart LR
-  T["RothMinimap.toc"] --> C["RothMinimap.lua"]
-  T --> S["modules/Skin.lua"]
-  T --> P["modules/Ping.lua"]
-  T --> Z["modules/Zoom.lua"]
-  T --> O["Options.lua"]
-
-  C --> DB[("RothMinimapDB schema 6")]
-  C --> MASK["deterministic Minimap mask"]
-  C --> ART["exact decorative alpha ownership"]
-  C --> Q["coalesced refresh queue"]
-
-  E["Blizzard Edit Mode"] --> N["native Minimap geometry/widgets/input"]
-  N --> S
-  N --> Z
-
-  S --> OWN["addon-owned noninteractive art"]
-  P --> OWN
-  P --> MP["direct MINIMAP_PING event"]
-  Z --> W["post-wheel observation"]
-  O --> DB
-  O --> C
-
-  X["offline contract/runtime tests"] --> C
-  X --> S
-  X --> P
-  X --> Z
-  X --> O
+  TOC["RothMinimap.toc"] --> CORE["RothMinimap.lua"]
+  CORE --> DB[("RothMinimapDB schema 6")]
+  CORE --> MODE{"Native presentation?"}
+  MODE -->|normal| MASK["square mask + exact art policy"]
+  MODE -->|hybrid / housing| FALLBACK["default mask + restore art"]
+  CORE --> SKIN["modules/Skin.lua"]
+  CORE --> PING["modules/Ping.lua"]
+  CORE --> ZOOM["modules/Zoom.lua"]
+  CORE --> OPT["Options.lua"]
+  PING --> CALLBACK["MINIMAP_PING CallbackEvent"]
+  ZOOM --> WHEEL["native OnMouseWheel post-hook"]
+  SKIN --> OWNED["addon-owned regions + visible-only ticker"]
+  OPT --> DB
 ```
 
-There is no Roth Minimap ownership edge to native/third-party buttons, functional `MinimapBackdrop` descendants, or `MinimapCluster` geometry.
+No edge grants ownership of `MinimapCluster`, `MinimapBackdrop`, Hybrid Minimap, MapCanvas masks, housing overlays, or third-party buttons.

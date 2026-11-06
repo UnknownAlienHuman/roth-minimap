@@ -1,5 +1,5 @@
 -- Roth Minimap ping notification for Retail 12.1.5.
--- MINIMAP_PING arguments are ignored at the native event boundary.
+-- MINIMAP_PING is a CallbackEvent with secret payloads; arguments are ignored.
 
 local _, ns = ...
 ns.ping = ns.ping or {}
@@ -10,6 +10,7 @@ local toast
 local animation
 local hold
 local registered = false
+local callbackFrame = CreateFrame("Frame")
 
 local function ResetToast()
   if toast then
@@ -90,22 +91,31 @@ local function OnPing()
   if ns.skin and type(ns.skin.Pulse) == "function" then ns.skin:Pulse() end
 end
 
-local eventFrame = CreateFrame("Frame")
-eventFrame:SetScript("OnEvent", function(_, event)
-  if event == "MINIMAP_PING" then OnPing() end
-end)
+local function RegisterPing()
+  if registered then return true end
+  if type(callbackFrame.RegisterEventCallback) ~= "function" then return false end
+  callbackFrame:RegisterEventCallback("MINIMAP_PING", OnPing)
+  registered = true
+  return true
+end
+
+local function UnregisterPing()
+  if not registered then return true end
+  if type(callbackFrame.UnregisterEventCallback) ~= "function" then return false end
+  callbackFrame:UnregisterEventCallback("MINIMAP_PING")
+  registered = false
+  return true
+end
 
 function M:Apply()
   local db = ns.db and ns.db.ping
   local enabled = ns.db and ns.db.enabled and db and db.enabled
 
   if enabled and db.where == "toast" and not EnsureToast() then return false end
-  if enabled and not registered then
-    eventFrame:RegisterEvent("MINIMAP_PING")
-    registered = true
-  elseif not enabled and registered then
-    eventFrame:UnregisterEvent("MINIMAP_PING")
-    registered = false
+  if enabled then
+    if not RegisterPing() then return false end
+  elseif not UnregisterPing() then
+    return false
   end
 
   if not enabled or db.where ~= "toast" then StopToast() end
@@ -121,7 +131,6 @@ function M:ApplySafeState()
 end
 
 function M:Disable()
-  if registered then eventFrame:UnregisterEvent("MINIMAP_PING") end
-  registered = false
+  UnregisterPing()
   StopToast()
 end
