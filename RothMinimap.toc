@@ -1,8 +1,8 @@
 ## Interface: 120105
 ## Title: Roth Minimap
-## Notes: Edit-Mode-compatible square mask, additive Diablo art, opaque ping and native-wheel zoom reset for Retail 12.1.5.
+## Notes: Edit-Mode-compatible square mask, additive Diablo art, opaque ping, and native-wheel zoom reset for Retail 12.1.5.
 ## Author: Neomorph (Roth UI Project)
-## Version: 0.4.1
+## Version: 0.4.2
 ## SavedVariables: RothMinimapDB
 ## LoadSavedVariablesFirst: 1
 ## AddonCompartmentFunc: RothMinimap_OpenConfig

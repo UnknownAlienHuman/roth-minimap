@@ -1,17 +1,11 @@
--- RothMinimap core for Retail 12.1.5.
---
--- Ownership boundary:
---   * Blizzard/Edit Mode owns MinimapCluster position, size and child widgets.
---   * RothMinimap owns only its SavedVariables, mask, exact decorative alpha,
---     and addon-created skin/ping/zoom-reset objects.
---   * No Blizzard clock/calendar/tracking/difficulty/compartment frame is
---     reparented, reanchored, resized, method-overridden or collected.
+-- Roth Minimap core for Retail 12.1.5.
+-- Blizzard/Edit Mode owns native minimap geometry, input and child widgets.
 
-local ADDON_NAME, ns = ...
+local _, ns = ...
 ns = ns or {}
 
-ns.VERSION = "0.4.1"
-ns.DB_VERSION = 5
+ns.VERSION = "0.4.2"
+ns.DB_VERSION = 6
 ns.media = "Interface\\AddOns\\RothMinimap\\media\\"
 
 local DEFAULT_MASK = "Interface\\Minimap\\UI-Minimap-Background"
@@ -22,7 +16,6 @@ local DEFAULTS = {
   enabled = true,
   squareMask = true,
   hideBlizzardArt = true,
-  debug = false,
 
   skin = {
     enabled = true,
@@ -165,13 +158,13 @@ local function ReplaceContents(destination, source)
   end
 end
 
-local function CopyColor(value, fallback)
+local function CopyColor(value, fallback, alpha)
   local source = SafeTable(value) or fallback
   return {
     Clamp(source[1], fallback[1], 0, 1),
     Clamp(source[2], fallback[2], 0, 1),
     Clamp(source[3], fallback[3], 0, 1),
-    Clamp(source[4], fallback[4], 0, 1),
+    Clamp(alpha ~= nil and alpha or source[4], fallback[4], 0, 1),
   }
 end
 
@@ -181,7 +174,6 @@ local function SanitizeDB(db)
   db.enabled = SafeBoolean(db.enabled) ~= false
   db.squareMask = SafeBoolean(db.squareMask) ~= false
   db.hideBlizzardArt = SafeBoolean(db.hideBlizzardArt) ~= false
-  db.debug = SafeBoolean(db.debug) == true
 
   db.skin = SafeTable(db.skin) or {}
   MergeDefaults(db.skin, DEFAULTS.skin)
@@ -192,26 +184,24 @@ local function SanitizeDB(db)
   db.skin.fire = SafeBoolean(db.skin.fire) ~= false
   db.skin.borderColor = CopyColor(db.skin.borderColor, DEFAULTS.skin.borderColor)
   db.skin.runesColor = CopyColor(db.skin.runesColor, DEFAULTS.skin.runesColor)
-  db.skin.vignetteAlpha = Clamp(db.skin.vignetteAlpha, 0.40, 0, 1)
-  db.skin.fireIdleAlpha = Clamp(db.skin.fireIdleAlpha, 0.14, 0, 1)
-  db.skin.fireCombatAlpha = Clamp(db.skin.fireCombatAlpha, 0.42, 0, 1)
-  db.skin.fireFPS = math.floor(Clamp(db.skin.fireFPS, 8, 1, 20) + 0.5)
-  db.skin.outset = math.floor(Clamp(db.skin.outset, 34, 0, 96) + 0.5)
+  db.skin.vignetteAlpha = Clamp(db.skin.vignetteAlpha, DEFAULTS.skin.vignetteAlpha, 0, 1)
+  db.skin.fireIdleAlpha = Clamp(db.skin.fireIdleAlpha, DEFAULTS.skin.fireIdleAlpha, 0, 1)
+  db.skin.fireCombatAlpha = Clamp(db.skin.fireCombatAlpha, DEFAULTS.skin.fireCombatAlpha, 0, 1)
+  db.skin.fireFPS = math.floor(Clamp(db.skin.fireFPS, DEFAULTS.skin.fireFPS, 1, 20) + 0.5)
+  db.skin.outset = math.floor(Clamp(db.skin.outset, DEFAULTS.skin.outset, 0, 96) + 0.5)
 
   db.ping = SafeTable(db.ping) or {}
   MergeDefaults(db.ping, DEFAULTS.ping)
   db.ping.enabled = SafeBoolean(db.ping.enabled) ~= false
   db.ping.where = SafeString(db.ping.where) == "chat" and "chat" or "toast"
-  db.ping.duration = Clamp(db.ping.duration, 3, 1, 10)
-  db.ping.sound = nil
+  db.ping.duration = Clamp(db.ping.duration, DEFAULTS.ping.duration, 1, 10)
 
   db.zoom = SafeTable(db.zoom) or {}
   MergeDefaults(db.zoom, DEFAULTS.zoom)
   db.zoom.autoReset = SafeBoolean(db.zoom.autoReset) ~= false
-  db.zoom.delay = Clamp(db.zoom.delay, 3, 1, 10)
-  db.zoom.mousewheel = nil
+  db.zoom.delay = Clamp(db.zoom.delay, DEFAULTS.zoom.delay, 1, 10)
 
-  -- Retire ownership that cannot be made generic and safe on Retail 12.1.5.
+  -- Retired pre-0.4 ownership and duplicated settings.
   db.buttons = nil
   db.position = nil
   db.mover = nil
@@ -222,6 +212,19 @@ local function SanitizeDB(db)
   db.compartment = nil
   db.hud = nil
   db.hide = nil
+  db.square = nil
+  db.skinEnabled = nil
+  db.skinPadding = nil
+  db.visual = nil
+  db.fire = nil
+  db.quickMap = nil
+  db.zoneText = nil
+  db.shadow = nil
+  db.debug = nil
+  db.ping.sound = nil
+  db.zoom.mousewheel = nil
+  db.zoom.mode = nil
+  db.zoom.interval = nil
 end
 
 local function NewDB()
@@ -231,69 +234,117 @@ local function NewDB()
   return db
 end
 
-local function MigrateDB(raw)
-  local old = SafeTable(raw)
-  if not old then return NewDB() end
+local function FirstBoolean(...)
+  for index = 1, select("#", ...) do
+    local value = SafeBoolean(select(index, ...))
+    if value ~= nil then return value end
+  end
+  return nil
+end
+
+local function FirstNumber(...)
+  for index = 1, select("#", ...) do
+    local value = SafeNumber(select(index, ...))
+    if value ~= nil then return value end
+  end
+  return nil
+end
+
+local function MigrateLegacyDB(old)
   local migrated = NewDB()
+  local general = SafeTable(old.general)
+  local visual = SafeTable(old.visual)
+  local legacyFire = SafeTable(old.fire)
+  local legacyPing = SafeTable(old.ping)
+  local legacyZoom = SafeTable(old.zoom)
 
-  local oldGeneral = SafeTable(old.general)
-  local oldSkin = SafeTable(old.skin)
-  local oldPing = SafeTable(old.ping)
-  local oldZoom = SafeTable(old.zoom)
+  local enabled = FirstBoolean(old.enabled, general and general.enabled)
+  if enabled ~= nil then migrated.enabled = enabled end
 
-  migrated.enabled = SafeBoolean(old.enabled)
-  if migrated.enabled == nil then migrated.enabled = true end
-  migrated.squareMask = SafeBoolean(old.squareMask)
-  if migrated.squareMask == nil and oldGeneral then migrated.squareMask = SafeBoolean(oldGeneral.square) end
-  if migrated.squareMask == nil then migrated.squareMask = true end
-  migrated.hideBlizzardArt = SafeBoolean(old.hideBlizzardArt)
-  if migrated.hideBlizzardArt == nil and oldGeneral then
-    migrated.hideBlizzardArt = SafeBoolean(oldGeneral.hideBlizzardArt)
+  local square = FirstBoolean(old.squareMask, old.square, general and general.square)
+  if square ~= nil then migrated.squareMask = square end
+
+  local hideArt = FirstBoolean(old.hideBlizzardArt, general and general.hideBlizzardArt)
+  if hideArt ~= nil then migrated.hideBlizzardArt = hideArt end
+
+  local skinEnabled = SafeBoolean(old.skinEnabled)
+  if skinEnabled ~= nil then migrated.skin.enabled = skinEnabled end
+
+  if visual then
+    local border = SafeTable(visual.border)
+    if border then
+      local alpha = SafeNumber(border.alpha)
+      migrated.skin.border = alpha == nil or alpha > 0
+      migrated.skin.borderColor = CopyColor(border.color, migrated.skin.borderColor, alpha)
+    end
+
+    local runes = SafeTable(visual.runes)
+    if runes then
+      local runesEnabled = SafeBoolean(runes.enabled)
+      if runesEnabled ~= nil then migrated.skin.runes = runesEnabled end
+      migrated.skin.runesColor = CopyColor(
+        runes.color,
+        migrated.skin.runesColor,
+        FirstNumber(runes.outAlpha, runes.alpha)
+      )
+    end
+
+    local vignette = SafeTable(visual.vignette)
+    if vignette then
+      local vignetteEnabled = SafeBoolean(vignette.enabled)
+      if vignetteEnabled ~= nil then migrated.skin.vignette = vignetteEnabled end
+      migrated.skin.vignetteAlpha = FirstNumber(vignette.alpha) or migrated.skin.vignetteAlpha
+    end
   end
-  if migrated.hideBlizzardArt == nil then migrated.hideBlizzardArt = true end
-  migrated.debug = SafeBoolean(old.debug) == true
 
-  if oldSkin then
-    migrated.skin.enabled = SafeBoolean(oldSkin.enabled) ~= false
-    migrated.skin.border = SafeBoolean(oldSkin.border) ~= false
-    migrated.skin.runes = SafeBoolean(oldSkin.runes) == true
-    migrated.skin.vignette = SafeBoolean(oldSkin.vignette) ~= false
-    migrated.skin.fire = SafeBoolean(oldSkin.fire) ~= false
-    migrated.skin.vignetteAlpha = SafeNumber(oldSkin.vignetteAlpha) or migrated.skin.vignetteAlpha
-    migrated.skin.fireIdleAlpha = SafeNumber(oldSkin.fireIdleAlpha) or migrated.skin.fireIdleAlpha
-    migrated.skin.fireCombatAlpha = SafeNumber(oldSkin.fireCombatAlpha) or migrated.skin.fireCombatAlpha
-    migrated.skin.fireFPS = SafeNumber(oldSkin.fireFPS) or migrated.skin.fireFPS
-    migrated.skin.outset = SafeNumber(oldSkin.outset) or migrated.skin.outset
-    migrated.skin.borderColor = CopyColor(oldSkin.borderColor, migrated.skin.borderColor)
-    migrated.skin.runesColor = CopyColor(oldSkin.runesColor, migrated.skin.runesColor)
+  if legacyFire then
+    local fireEnabled = SafeBoolean(legacyFire.enabled)
+    if fireEnabled ~= nil then migrated.skin.fire = fireEnabled end
+    migrated.skin.fireIdleAlpha = FirstNumber(legacyFire.outAlpha) or migrated.skin.fireIdleAlpha
+    migrated.skin.fireCombatAlpha = FirstNumber(legacyFire.combatAlpha) or migrated.skin.fireCombatAlpha
+    migrated.skin.fireFPS = FirstNumber(legacyFire.combatFPS, legacyFire.outFPS) or migrated.skin.fireFPS
   end
 
-  if oldPing then
-    migrated.ping.enabled = SafeBoolean(oldPing.enabled) ~= false
-    migrated.ping.where = SafeString(oldPing.where) or migrated.ping.where
-    migrated.ping.duration = SafeNumber(oldPing.duration) or migrated.ping.duration
+  if legacyPing then
+    local pingEnabled = SafeBoolean(legacyPing.enabled)
+    if pingEnabled ~= nil then migrated.ping.enabled = pingEnabled end
+    migrated.ping.where = SafeString(legacyPing.where) or migrated.ping.where
+    migrated.ping.duration = SafeNumber(legacyPing.duration) or migrated.ping.duration
   end
 
-  if oldZoom then
-    local oldAutoReset = SafeBoolean(oldZoom.autoReset)
-    local oldMousewheel = SafeBoolean(oldZoom.mousewheel)
-    if oldAutoReset ~= nil then migrated.zoom.autoReset = oldAutoReset end
-    if oldMousewheel == false then migrated.zoom.autoReset = false end
-    migrated.zoom.delay = SafeNumber(oldZoom.delay) or migrated.zoom.delay
+  if legacyZoom then
+    local autoReset = SafeBoolean(legacyZoom.autoReset)
+    local mousewheel = SafeBoolean(legacyZoom.mousewheel)
+    if autoReset ~= nil then migrated.zoom.autoReset = autoReset end
+    if mousewheel == false then migrated.zoom.autoReset = false end
+    migrated.zoom.delay = SafeNumber(legacyZoom.delay) or migrated.zoom.delay
   end
 
   SanitizeDB(migrated)
   return migrated
 end
 
+local function MigrateDB(raw)
+  local old = SafeTable(raw)
+  if not old then return NewDB() end
+
+  local migrated
+  if SafeTable(old.skin) then
+    SanitizeDB(old)
+    migrated = old
+  else
+    migrated = MigrateLegacyDB(old)
+  end
+
+  if migrated ~= old then ReplaceContents(old, migrated) end
+  return old
+end
+
 RothMinimapDB = MigrateDB(RothMinimapDB)
 ns.db = RothMinimapDB
 
 ns.util = {
-  CanAccess = CanAccess,
-  SafeBoolean = SafeBoolean,
   SafeNumber = SafeNumber,
-  SafeString = SafeString,
   SafeTable = SafeTable,
   CanUseObject = CanUseObject,
   SafeCall = SafeCall,
@@ -301,48 +352,11 @@ ns.util = {
   clamp = ClampValue,
 }
 
-local eventFrame = CreateFrame("Frame")
-local eventHandlers = {}
-
-function ns.RegisterEvent(event, callback)
-  if type(event) ~= "string" or type(callback) ~= "function" then return false end
-  local handlers = eventHandlers[event]
-  if not handlers then
-    handlers = {}
-    eventHandlers[event] = handlers
-    eventFrame:RegisterEvent(event)
-  end
-  handlers[callback] = true
-  return true
-end
-
-function ns.UnregisterEvent(event, callback)
-  local handlers = eventHandlers[event]
-  if not handlers then return end
-  handlers[callback] = nil
-  if not next(handlers) then
-    eventHandlers[event] = nil
-    eventFrame:UnregisterEvent(event)
-  end
-end
-
-local pendingApply = false
-local geometryRefreshTimer
-local artState = setmetatable({}, { __mode = "k" })
-
-local function Debug(message)
-  if not ns.db.debug then return end
-  local text = SafeString(message) or "<unavailable>"
-  if DEFAULT_CHAT_FRAME then
-    DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffRothMinimap:|r " .. text)
-  end
-end
-
 local function ReportError(scope, errorText)
-  local message = "RothMinimap " .. scope .. ": " .. tostring(errorText)
+  local message = "Roth Minimap " .. scope .. ": " .. tostring(errorText)
   local handler = type(geterrorhandler) == "function" and geterrorhandler() or nil
   if type(handler) == "function" then
-    handler(message)
+    pcall(handler, message)
   elseif DEFAULT_CHAT_FRAME then
     DEFAULT_CHAT_FRAME:AddMessage("|cffff5555" .. message .. "|r")
   end
@@ -360,155 +374,188 @@ local function CallModule(moduleName, methodName)
   return result ~= false
 end
 
-local function SnapshotAlpha(object)
-  if not CanUseObject(object) or artState[object] then return end
-  local alpha = SafeGet(object, "GetAlpha")
-  artState[object] = { alpha = SafeNumber(alpha) or 1 }
-end
+local artState = setmetatable({}, { __mode = "k" })
 
-local function SetDecorativeAlpha(object, hidden)
-  if not CanUseObject(object) then return end
-  SnapshotAlpha(object)
+local function SetDecorativeHidden(object, hidden)
+  if not object then return true end
+  if not CanUseObject(object) then return false end
+
   local state = artState[object]
-  SafeCall(object, "SetAlpha", hidden and 0 or (state and state.alpha or 1))
+  if not state then
+    state = {}
+    artState[object] = state
+  end
+
+  local currentAlpha = SafeNumber(SafeGet(object, "GetAlpha"))
+  if hidden then
+    if currentAlpha == nil then return false end
+    if not state.applied or currentAlpha ~= 0 then state.originalAlpha = currentAlpha end
+    if currentAlpha ~= 0 and not SafeCall(object, "SetAlpha", 0) then return false end
+    state.applied = true
+    return true
+  end
+
+  if state.applied and currentAlpha == 0 and state.originalAlpha ~= nil then
+    if not SafeCall(object, "SetAlpha", state.originalAlpha) then return false end
+  end
+  state.applied = false
+  state.originalAlpha = nil
+  return true
 end
 
 local function ApplyBlizzardArt()
   local hidden = ns.db.enabled and ns.db.hideBlizzardArt
-
-  -- Exact selected-source decorative owners only. MinimapBackdrop is excluded:
-  -- it owns the housing static overlay and expansion landing-page controls.
-  SetDecorativeAlpha(_G.MinimapCompassTexture, hidden)
+  local okCompass = SetDecorativeHidden(_G.MinimapCompassTexture, hidden)
   local cluster = _G.MinimapCluster
-  SetDecorativeAlpha(cluster and cluster.BorderTop, hidden)
+  local okTop = SetDecorativeHidden(cluster and cluster.BorderTop, hidden)
+  return okCompass and okTop
 end
 
 local function ApplyMask()
-  if not CanUseObject(_G.Minimap) then return end
+  if not CanUseObject(_G.Minimap) then return false end
   local texture = ns.db.enabled and ns.db.squareMask and SQUARE_MASK or DEFAULT_MASK
-  SafeCall(Minimap, "SetMaskTexture", texture)
+  return SafeCall(Minimap, "SetMaskTexture", texture)
 end
 
 local function ApplyModules()
-  CallModule("skin", "Apply")
-  CallModule("ping", "Apply")
-  CallModule("zoom", "Apply")
+  local skinOK = CallModule("skin", "Apply")
+  local pingOK = CallModule("ping", "Apply")
+  local zoomOK = CallModule("zoom", "Apply")
+  return skinOK and pingOK and zoomOK
 end
 
-local function CancelGeometryRefresh()
-  if geometryRefreshTimer and type(geometryRefreshTimer.Cancel) == "function" then
-    geometryRefreshTimer:Cancel()
-  end
-  geometryRefreshTimer = nil
+local function ApplyOwnedSafeState()
+  CallModule("skin", "ApplySafeState")
+  CallModule("ping", "ApplySafeState")
+  CallModule("zoom", "ApplySafeState")
+end
+
+local refreshTimer
+local refreshNeedsFullApply = false
+local pendingFullApply = false
+local pendingGeometryRefresh = false
+
+local function IsCombatLocked()
+  return type(InCombatLockdown) == "function" and InCombatLockdown()
+end
+
+local function CancelRefreshTimer()
+  if refreshTimer and type(refreshTimer.Cancel) == "function" then refreshTimer:Cancel() end
+  refreshTimer = nil
 end
 
 local function RefreshOwnedGeometry()
-  if type(InCombatLockdown) == "function" and InCombatLockdown() then
-    pendingApply = true
+  if not (ns.db.enabled and ns.db.skin and ns.db.skin.enabled) then
+    pendingGeometryRefresh = false
+    return true
+  end
+  if IsCombatLocked() then
+    pendingGeometryRefresh = true
     return false
   end
+  pendingGeometryRefresh = false
   return CallModule("skin", "UpdateGeometry")
 end
 
-function ns.QueueGeometryRefresh()
-  if geometryRefreshTimer then return end
-  if C_Timer and type(C_Timer.NewTimer) == "function" then
-    geometryRefreshTimer = C_Timer.NewTimer(0, function()
-      geometryRefreshTimer = nil
-      RefreshOwnedGeometry()
-    end)
+function ns.ApplyAll()
+  if IsCombatLocked() then
+    pendingFullApply = true
+    ApplyOwnedSafeState()
+    return false
+  end
+
+  pendingFullApply = false
+  pendingGeometryRefresh = false
+  refreshNeedsFullApply = false
+  CancelRefreshTimer()
+
+  local maskOK = ApplyMask()
+  local artOK = ApplyBlizzardArt()
+  local modulesOK = ApplyModules()
+  return maskOK and artOK and modulesOK
+end
+
+local function RunQueuedRefresh()
+  refreshTimer = nil
+  local fullApply = refreshNeedsFullApply
+  refreshNeedsFullApply = false
+  if fullApply then
+    ns.ApplyAll()
   else
     RefreshOwnedGeometry()
   end
 end
 
-function ns.ApplyAll()
-  SanitizeDB(ns.db)
-  if type(InCombatLockdown) == "function" and InCombatLockdown() then
-    pendingApply = true
-    return false
-  end
+function ns.QueueRefresh(fullApply)
+  if fullApply then refreshNeedsFullApply = true end
+  if refreshTimer then return end
 
-  pendingApply = false
-  CancelGeometryRefresh()
-  ApplyMask()
-  ApplyBlizzardArt()
-  ApplyModules()
-  return true
+  if C_Timer and type(C_Timer.NewTimer) == "function" then
+    refreshTimer = C_Timer.NewTimer(0, RunQueuedRefresh)
+  else
+    RunQueuedRefresh()
+  end
 end
 
 function ns.ResetDB()
   local fresh = NewDB()
   ReplaceContents(ns.db, fresh)
   RothMinimapDB = ns.db
-  ns.ApplyAll()
+  local applied = ns.ApplyAll()
   if type(ns.RefreshSettings) == "function" then ns.RefreshSettings() end
+  return applied
 end
 
 function ns.GetStatus()
   return {
+    version = ns.VERSION,
     enabled = ns.db.enabled,
     squareMask = ns.db.squareMask,
     hideBlizzardArt = ns.db.hideBlizzardArt,
-    editModeOwnsGeometry = true,
-    buttonBag = "removed",
     zoomReset = ns.db.zoom.autoReset,
-    pendingApply = pendingApply,
+    pendingApply = pendingFullApply or pendingGeometryRefresh,
   }
 end
 
+local editModeCallbacksRegistered = false
 local function RegisterEditModeCallbacks()
-  if ns._editModeRegistered or not EventRegistry or type(EventRegistry.RegisterCallback) ~= "function" then return end
-  ns._editModeRegistered = true
-  EventRegistry:RegisterCallback("EditMode.Exit", ns.QueueGeometryRefresh, ns)
-  EventRegistry:RegisterCallback("EditMode.SavedLayouts", ns.QueueGeometryRefresh, ns)
+  if editModeCallbacksRegistered then return end
+  if not EventRegistry or type(EventRegistry.RegisterCallback) ~= "function" then return end
+  editModeCallbacksRegistered = true
+  EventRegistry:RegisterCallback("EditMode.Exit", function() ns.QueueRefresh(false) end, ns)
+  EventRegistry:RegisterCallback("EditMode.SavedLayouts", function() ns.QueueRefresh(false) end, ns)
 end
 
-local function OnCoreEvent(_, event, ...)
-  if event == "ADDON_LOADED" then
-    local loaded = ...
-    if SafeString(loaded) ~= ADDON_NAME then return end
-    ns.UnregisterEvent("ADDON_LOADED", OnCoreEvent)
-    Debug("loaded v" .. ns.VERSION)
-  elseif event == "PLAYER_LOGIN" then
+local coreEvents = CreateFrame("Frame")
+coreEvents:RegisterEvent("PLAYER_LOGIN")
+coreEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
+coreEvents:RegisterEvent("PLAYER_REGEN_ENABLED")
+coreEvents:RegisterEvent("UI_SCALE_CHANGED")
+coreEvents:SetScript("OnEvent", function(_, event)
+  if event == "PLAYER_LOGIN" then
     RegisterEditModeCallbacks()
-    ns.ApplyAll()
-  elseif event == "PLAYER_ENTERING_WORLD" or event == "UI_SCALE_CHANGED" then
-    ns.ApplyAll()
-  elseif event == "PLAYER_REGEN_ENABLED" and pendingApply then
-    ns.ApplyAll()
-  end
-end
-
-for _, event in ipairs({
-  "ADDON_LOADED",
-  "PLAYER_LOGIN",
-  "PLAYER_ENTERING_WORLD",
-  "PLAYER_REGEN_ENABLED",
-  "UI_SCALE_CHANGED",
-}) do
-  ns.RegisterEvent(event, OnCoreEvent)
-end
-
-eventFrame:SetScript("OnEvent", function(self, event, ...)
-  local handlers = eventHandlers[event]
-  if not handlers then return end
-  local snapshot = {}
-  for callback in pairs(handlers) do snapshot[#snapshot + 1] = callback end
-  for _, callback in ipairs(snapshot) do
-    local ok, errorText = pcall(callback, self, event, ...)
-    if not ok then ReportError("event " .. event, errorText) end
+  elseif event == "PLAYER_ENTERING_WORLD" then
+    ns.QueueRefresh(true)
+  elseif event == "UI_SCALE_CHANGED" then
+    ns.QueueRefresh(true)
+  elseif event == "PLAYER_REGEN_ENABLED" then
+    if pendingFullApply then
+      ns.ApplyAll()
+    elseif pendingGeometryRefresh then
+      RefreshOwnedGeometry()
+    end
   end
 end)
 
 function _G.RothMinimap_OpenConfig()
-  if ns.OpenOptions then ns.OpenOptions() end
+  if type(ns.OpenOptions) == "function" then ns.OpenOptions() end
 end
 
 SLASH_ROTHMINIMAP1 = "/rmmap"
 SlashCmdList.ROTHMINIMAP = function(message)
   message = SafeString(message) or ""
   message = message:lower():gsub("^%s+", ""):gsub("%s+$", "")
+
   if message == "toggle" then
     ns.db.enabled = not ns.db.enabled
     ns.ApplyAll()
@@ -517,20 +564,18 @@ SlashCmdList.ROTHMINIMAP = function(message)
   elseif message == "status" then
     local status = ns.GetStatus()
     print(string.format(
-      "RothMinimap: enabled=%s square=%s hideArt=%s geometry=Blizzard Edit Mode buttonBag=%s zoomReset=%s pending=%s",
+      "Roth Minimap %s: enabled=%s square=%s hideArt=%s geometry=Blizzard Edit Mode zoomReset=%s pending=%s",
+      status.version,
       tostring(status.enabled),
       tostring(status.squareMask),
       tostring(status.hideBlizzardArt),
-      status.buttonBag,
       tostring(status.zoomReset),
       tostring(status.pendingApply)
     ))
   elseif message == "config" or message == "options" or message == "" then
     _G.RothMinimap_OpenConfig()
   else
-    print("RothMinimap: /rmmap config|toggle|reset|status")
+    print("Roth Minimap: /rmmap config|toggle|reset|status")
     print("Position and size are controlled by Blizzard Edit Mode.")
   end
 end
-
-_G.RothMinimap = ns

@@ -2,32 +2,33 @@
 
 ```mermaid
 flowchart LR
-  T["RothMinimap.toc / Interface 120105"] --> SV["LoadSavedVariablesFirst"]
-  SV --> C["RothMinimap.lua"]
+  T["RothMinimap.toc"] --> C["RothMinimap.lua"]
   T --> S["modules/Skin.lua"]
   T --> P["modules/Ping.lua"]
   T --> Z["modules/Zoom.lua"]
   T --> O["Options.lua"]
 
-  C --> DB[("RothMinimapDB v5; stable table identity")]
-  O --> SET["Blizzard Settings"]
-  SET --> DB
-  C --> MASK["Minimap mask"]
-  C --> ART["MinimapCompassTexture + BorderTop alpha"]
+  C --> DB[("RothMinimapDB schema 6")]
+  C --> MASK["deterministic Minimap mask"]
+  C --> ART["exact decorative alpha ownership"]
+  C --> Q["coalesced refresh queue"]
 
-  E["Blizzard Edit Mode"] --> M["Minimap / MinimapCluster geometry"]
-  M --> S
-  S --> OWN["addon-owned border/runes/fire/pulse/vignette"]
+  E["Blizzard Edit Mode"] --> N["native Minimap geometry/widgets/input"]
+  N --> S
+  N --> Z
+
+  S --> OWN["addon-owned noninteractive art"]
   P --> OWN
+  P --> MP["direct MINIMAP_PING event"]
+  Z --> W["post-wheel observation"]
+  O --> DB
+  O --> C
 
-  W["Blizzard MinimapMixin:OnMouseWheel"] --> STEP["one native zoom step"]
-  STEP --> Z
-  Z --> RESET["one cancellable reset timer"]
-
-  TS["tests/test_contracts_12_1_5.lua"] --> C
-  TR["tests/test_runtime_stubs.lua"] --> DB
-  TR --> ART
-  TR --> RESET
+  X["offline contract/runtime tests"] --> C
+  X --> S
+  X --> P
+  X --> Z
+  X --> O
 ```
 
-Clock, calendar, tracking, difficulty, mail, housing/landing-page controls, queues, Addon Compartment, and native/third-party minimap buttons have no ownership edge from Roth Minimap.
+There is no Roth Minimap ownership edge to native/third-party buttons, functional `MinimapBackdrop` descendants, or `MinimapCluster` geometry.

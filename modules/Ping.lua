@@ -1,5 +1,5 @@
--- RothMinimap ping notification for Retail 12.1.5.
--- The MINIMAP_PING payload is intentionally ignored in full.
+-- Roth Minimap ping notification for Retail 12.1.5.
+-- MINIMAP_PING arguments are ignored at the native event boundary.
 
 local _, ns = ...
 ns.ping = ns.ping or {}
@@ -11,17 +11,25 @@ local animation
 local hold
 local registered = false
 
+local function ResetToast()
+  if toast then
+    toast:SetAlpha(0)
+    toast:Hide()
+  end
+end
+
 local function StopToast()
   if animation then animation:Stop() end
-  if toast then toast:Hide() end
+  ResetToast()
 end
 
 local function EnsureToast()
   if toast then return true end
-  if InCombatLockdown and InCombatLockdown() then return false end
+  if type(InCombatLockdown) == "function" and InCombatLockdown() then return false end
   if not U.CanUseObject(_G.Minimap) then return false end
 
-  toast = CreateFrame("Frame", "RothMinimapPingToast", Minimap, "BackdropTemplate")
+  toast = CreateFrame("Frame", nil, Minimap, "BackdropTemplate")
+  toast:EnableMouse(false)
   toast:SetSize(190, 36)
   toast:SetFrameStrata("HIGH")
   toast:SetPoint("TOP", Minimap, "BOTTOM", 0, -8)
@@ -54,8 +62,11 @@ local function EnsureToast()
   fadeOut:SetFromAlpha(1)
   fadeOut:SetToAlpha(0)
   fadeOut:SetDuration(0.30)
-  animation:SetScript("OnFinished", function() toast:Hide() end)
+  animation:SetScript("OnStop", ResetToast)
+  animation:SetScript("OnFinished", ResetToast)
+
   Minimap:HookScript("OnHide", StopToast)
+  M.toast = toast
   return true
 end
 
@@ -65,10 +76,13 @@ local function OnPing()
 
   if db.where == "chat" then
     StopToast()
-    if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffRothMinimap:|r map ping received") end
+    if DEFAULT_CHAT_FRAME then
+      DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffRoth Minimap:|r map ping received")
+    end
   elseif U.SafeGet(Minimap, "IsVisible") == true and EnsureToast() then
     hold:SetDuration(U.clamp(U.SafeNumber(db.duration) or 3, 1, 10))
     animation:Stop()
+    toast:SetAlpha(1)
     toast:Show()
     animation:Play()
   end
@@ -76,16 +90,21 @@ local function OnPing()
   if ns.skin and type(ns.skin.Pulse) == "function" then ns.skin:Pulse() end
 end
 
+local eventFrame = CreateFrame("Frame")
+eventFrame:SetScript("OnEvent", function(_, event)
+  if event == "MINIMAP_PING" then OnPing() end
+end)
+
 function M:Apply()
   local db = ns.db and ns.db.ping
   local enabled = ns.db and ns.db.enabled and db and db.enabled
 
-  if enabled and db.where == "toast" then EnsureToast() end
+  if enabled and db.where == "toast" and not EnsureToast() then return false end
   if enabled and not registered then
-    ns.RegisterEvent("MINIMAP_PING", OnPing)
+    eventFrame:RegisterEvent("MINIMAP_PING")
     registered = true
   elseif not enabled and registered then
-    ns.UnregisterEvent("MINIMAP_PING", OnPing)
+    eventFrame:UnregisterEvent("MINIMAP_PING")
     registered = false
   end
 
@@ -93,8 +112,16 @@ function M:Apply()
   return true
 end
 
+function M:ApplySafeState()
+  local db = ns.db and ns.db.ping
+  if not (ns.db and ns.db.enabled and db and db.enabled and db.where == "toast") then
+    StopToast()
+  end
+  return true
+end
+
 function M:Disable()
-  if registered then ns.UnregisterEvent("MINIMAP_PING", OnPing) end
+  if registered then eventFrame:UnregisterEvent("MINIMAP_PING") end
   registered = false
   StopToast()
 end

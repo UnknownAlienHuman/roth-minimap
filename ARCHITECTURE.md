@@ -1,54 +1,71 @@
 # Roth Minimap architecture
 
-## Ownership
+Release `0.4.2` · SavedVariables schema `6`.
 
-`RothMinimap.lua` owns schema-v5 SavedVariables, access/object gates, event routing, deterministic square/default mask selection, exact decorative-alpha snapshots, isolated module application, coalesced Edit Mode geometry refresh, combat-deferred apply, in-place reset, and slash commands.
+## Runtime owners
 
-`modules/Skin.lua` owns only addon-created border, runes, fire, pulse, and vignette regions. `modules/Ping.lua` owns one addon-created fixed-text toast. `modules/Zoom.lua` owns a post-hook observer and one cancellable reset timer; Blizzard owns the actual wheel zoom step. `Options.lua` owns one session-lifetime Blizzard Settings category.
+`RothMinimap.lua` owns persistence, access helpers, deterministic mask policy, exact decorative alpha ownership, lifecycle coalescing, module application, reset, and slash commands.
 
-Blizzard/Edit Mode owns `MinimapCluster` geometry, native Minimap input, every functional child widget, and third-party minimap buttons.
+Feature modules own their native signals directly:
+
+- `modules/Skin.lua`: combat events, addon-owned visual regions, geometry, fire ticker, pulse cleanup;
+- `modules/Ping.lua`: `MINIMAP_PING`, fixed notification, toast lifecycle;
+- `modules/Zoom.lua`: post-wheel hook, world/combat/hide cancellation, one reset timer;
+- `Options.lua`: session-lifetime Settings registrations and callback-suppressed refresh.
+
+No generic event bus rebroadcasts raw Blizzard tuples.
 
 ## Load order
 
 ```text
 RothMinimap.toc
-  -> LoadSavedVariablesFirst
-  -> RothMinimap.lua: migrate/sanitize schema 5
+  -> RothMinimap.lua
   -> modules/Skin.lua
   -> modules/Ping.lua
   -> modules/Zoom.lua
-  -> Options.lua: register Settings after addon load
+  -> Options.lua
 ```
 
-## Geometry and visibility
+`LoadSavedVariablesFirst` makes the schema migration available before the first file. Settings register only after migration.
 
-The runtime never changes native parent, point, size, scale, clamping, click scripts, or state drivers. The skin frame is a noninteractive child of `Minimap`, anchored once, and resizes only after an accessible positive width/height read.
+## Ownership graph
 
-`EditMode.Exit` and `EditMode.SavedLayouts` coalesce into one addon-owned geometry refresh. World entry and UI-scale changes run one full apply. Inaccessible geometry preserves the last valid dimensions; there is no guessed fallback.
+```text
+Blizzard/Edit Mode
+  -> MinimapCluster position/size/settings
+  -> Minimap input and zoom step
+  -> native widgets and third-party buttons
 
-Effective native visibility controls addon art and ticker lifetime. Hiding `Minimap` hides the child skin and cancels repeating fire work.
+Roth Minimap core
+  -> schema-6 ordinary preferences
+  -> Minimap mask selection
+  -> exact decorative alpha snapshots
+  -> coalesced addon-owned refresh
 
-## Blizzard-art boundary
+feature modules
+  -> addon-created noninteractive art/toast
+  -> bounded owned timer/ticker
+```
 
-Only `MinimapCompassTexture` and `MinimapCluster.BorderTop` may have alpha changed. Their first accessible ordinary alpha is weakly snapshotted and restored.
+## Refresh topology
 
-`MinimapBackdrop` is excluded because selected source places the housing static overlay and expansion landing-page button/alerts inside it.
+```text
+PLAYER_ENTERING_WORLD -> one queued full apply
+UI_SCALE_CHANGED      -> one queued full revalidation/apply
+EditMode.Exit         -> same geometry queue
+EditMode.SavedLayouts -> same geometry queue
+combat restriction    -> one pending full/geometry flag
+PLAYER_REGEN_ENABLED  -> drain the latest pending state once
+```
 
-## Module behavior
+Equivalent requests share one zero-delay cancellable timer. Full apply upgrades a queued geometry-only request.
 
-- Skin: one 4×4 atlas ticker, bounded 1–20 FPS; start only while effectively visible; cancel on hide/disable; do not restart at the same interval.
-- Ping: ignore the complete event tuple; pre-create the toast outside combat; fixed ordinary text only; no duplicate sound.
-- Zoom: observe Blizzard's completed wheel step; one cancellable reset to level 0; no input-state mutation and no duplicate zoom step.
-- Settings: current vertical Settings API; schema tables retain identity across reset.
+## Persistence
 
-Module `Apply` calls are isolated so one visual feature error does not prevent mask, art, ping, or reset application; errors remain visible through the normal error handler.
+Schema 6 repairs current data and migrates the pre-0.4 layout. Mutable defaults are copied, types/domains are validated, retired ownership fields are removed, and root/nested table identities are preserved.
 
-## Persistent state
-
-Schema 5 persists only enablement, mask/art toggles, skin values, ping notification values, and zoom-reset values. It retires legacy mover, ButtonBag, widget-position, compartment, HUD, clock/calendar/tracking/difficulty, generic hide, duplicate ping-sound, and wheel-owner fields.
-
-Reset recursively replaces values inside the existing root/nested tables. Blizzard Settings therefore never retains stale table references.
+Settings callbacks are session lifetime. Reset performs one apply and broadcasts UI updates under a callback-suppression guard.
 
 ## Evidence boundary
 
-The local tests prove syntax and selected offline/static invariants. They do not prove live rendering, callback delivery, taint, protected execution, client build, or performance. Those remain explicit named-client validation work.
+Static and offline tests prove only the modeled code contracts. Client rendering, native lifecycle ordering, protected/taint behavior, hotfixes, and performance remain `NOT-RUN` until measured on a named client build.
