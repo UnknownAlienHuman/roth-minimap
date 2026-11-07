@@ -15,7 +15,13 @@ local function animationGroup(owner)
     local animation = { values = {} }
     return setmetatable(animation, {
       __index = function(tableValue, key)
-        return function(_, value) tableValue.values[key] = value end
+        return function(_, value, secondValue)
+          if secondValue ~= nil then
+            tableValue.values[key] = { value, secondValue }
+          else
+            tableValue.values[key] = value
+          end
+        end
       end,
     })
   end
@@ -44,6 +50,7 @@ local function object(parent)
     events = {},
     eventCallbacks = {},
     textures = {},
+    fontStrings = {},
     shown = true,
     alpha = 1,
     alphaReadable = true,
@@ -71,15 +78,18 @@ local function object(parent)
     for _, callback in ipairs(self.hooks[script] or {}) do callback(self, ...) end
   end
   function value:EnableMouse(enabled) self.mouse = enabled end
-  function value:SetPoint(...) self.point = { ... } end
+  function value:SetPoint(...) self.points = self.points or {}; self.points[#self.points + 1] = { ... } end
   function value:SetAllPoints(target) self.allPoints = target or true end
   function value:SetSize(width, height) self.width, self.height = width, height end
+  function value:SetWidth(width) self.width = width end
+  function value:SetHeight(height) self.height = height end
   function value:GetWidth() return self.width end
   function value:GetHeight() return self.height end
   function value:SetFrameStrata(strata) self.strata = strata end
   function value:GetFrameStrata() return self.strata end
   function value:SetFrameLevel(level) self.level = level end
   function value:GetFrameLevel() return self.level end
+  function value:SetClampedToScreen(value) self.clamped = value end
   function value:SetAlpha(alpha) self.alpha = alpha end
   function value:GetAlpha()
     if not self.alphaReadable then return { __bad = true } end
@@ -126,6 +136,8 @@ CreateFrame = function(_, _, parent)
   function frame:CreateFontString()
     local fontString = object(self)
     function fontString:SetText(text) self.text = text end
+    function fontString:SetTextColor(...) self.textColor = { ... } end
+    self.fontStrings[#self.fontStrings + 1] = fontString
     return fontString
   end
   frames[#frames + 1] = frame
@@ -187,6 +199,11 @@ Settings = {
     if tableRef[key] == nil then tableRef[key] = defaultValue end
     local setting = { variable = variable, key = key, tableRef = tableRef, valueType = valueType }
     function setting:SetValueChangedCallback(callback) self.callback = callback end
+    function setting:GetValue() return self.tableRef[self.key] end
+    function setting:SetValue(value)
+      self.tableRef[self.key] = value
+      if self.callback then self.callback(self, value) end
+    end
     function setting:NotifyUpdate()
       if self.callback then self.callback(self, self.tableRef[self.key]) end
     end
