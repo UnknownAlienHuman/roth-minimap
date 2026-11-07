@@ -1,4 +1,4 @@
-local frames, timers, tickers = {}, {}, {}
+local frames, timers, tickers, errors = {}, {}, {}, {}
 local combat, hybrid, housing = false, false, false
 
 canaccessvalue = function(value)
@@ -46,13 +46,15 @@ local function object(parent)
     textures = {},
     shown = true,
     alpha = 1,
+    alphaReadable = true,
+    accessible = true,
     width = 0,
     height = 0,
     strata = "MEDIUM",
     level = 0,
   }
 
-  function value:CanBeAccessedInContext() return true end
+  function value:CanBeAccessedInContext() return self.accessible end
   function value:IsForbidden() return false end
   function value:RegisterEvent(event) self.events[event] = true end
   function value:UnregisterEvent(event) self.events[event] = nil end
@@ -79,7 +81,10 @@ local function object(parent)
   function value:SetFrameLevel(level) self.level = level end
   function value:GetFrameLevel() return self.level end
   function value:SetAlpha(alpha) self.alpha = alpha end
-  function value:GetAlpha() return self.alpha end
+  function value:GetAlpha()
+    if not self.alphaReadable then return { __bad = true } end
+    return self.alpha
+  end
   function value:SetShown(shown) if shown then self:Show() else self:Hide() end end
   function value:Show()
     if not self.shown then
@@ -208,7 +213,9 @@ Settings = {
 }
 
 EventUtil = { ContinueOnAddOnLoaded = function(_, callback) callback() end }
-geterrorhandler = function() return function(message) error(message, 0) end end
+geterrorhandler = function()
+  return function(message) errors[#errors + 1] = message end
+end
 
 Minimap = object()
 Minimap.width = 198
@@ -243,6 +250,7 @@ return {
   event = fireEvent,
   timers = timers,
   tickers = tickers,
+  errors = errors,
   settings = settings,
   native = nativeWidget,
   hasRawEvent = hasRawEvent,

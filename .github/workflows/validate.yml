@@ -1,0 +1,28 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.1
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes lua5.1
+      - name: Compile every Lua file
+        run: lua5.1 tests/test_syntax.lua
+      - name: Static contracts
+        run: lua5.1 tests/test_contracts_12_1_5.lua
+      - name: Offline runtime contracts
+        run: lua5.1 tests/test_runtime_stubs.lua
+      - name: Validate TGA media
+        run: python3 tests/test_media.py

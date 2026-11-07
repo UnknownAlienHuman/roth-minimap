@@ -2,11 +2,12 @@
 ## Title: Roth Minimap
 ## Notes: Edit-Mode-compatible square mask, additive Diablo art, opaque ping, and native-wheel zoom reset for Retail 12.1.5.
 ## Author: Neomorph (Roth UI Project)
-## Version: 0.4.4
+## Version: 0.4.5
 ## SavedVariables: RothMinimapDB
 ## LoadSavedVariablesFirst: 1
 ## AddonCompartmentFunc: RothMinimap_OpenConfig
 ## X-Source-Reviewed-Build: 12.1.5.70783
+## X-Source-Reviewed-Commit: 297d7aaaa736f346b3e036f38ee088eaf7f8c07f
 
 RothMinimap.lua
 modules\Skin.lua

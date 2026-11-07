@@ -4,9 +4,9 @@
 local ADDON_NAME, ns = ...
 ns = ns or {}
 
-ns.VERSION = "0.4.4"
+ns.VERSION = "0.4.5"
 ns.DB_VERSION = 7
-ns.media = "Interface\\AddOns\\RothMinimap\\media\\"
+ns.media = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\"
 
 local DEFAULT_MASK = "Interface\\Minimap\\UI-Minimap-Background"
 local SQUARE_MASK = ns.media .. "mask_square.tga"
@@ -132,9 +132,10 @@ end
 local function MergeDefaults(destination, source)
   destination = SafeTable(destination) or {}
   for key, value in pairs(source) do
+    local current = destination[key]
     if type(value) == "table" then
-      destination[key] = MergeDefaults(destination[key], value)
-    elseif type(destination[key]) ~= type(value) then
+      destination[key] = MergeDefaults(current, value)
+    elseif not CanAccess(current) or type(current) ~= type(value) then
       destination[key] = value
     end
   end
@@ -370,7 +371,8 @@ ns.util = {
 }
 
 local function ReportError(scope, errorText)
-  local message = "Roth Minimap " .. scope .. ": " .. tostring(errorText)
+  local detail = SafeString(errorText) or "<unavailable>"
+  local message = "Roth Minimap " .. scope .. ": " .. detail
   local handler = type(geterrorhandler) == "function" and geterrorhandler() or nil
   if type(handler) == "function" then
     pcall(handler, message)
@@ -383,12 +385,22 @@ local function CallModule(moduleName, methodName)
   local module = ns[moduleName]
   local method = module and module[methodName]
   if type(method) ~= "function" then return true end
+
   local ok, result = pcall(method, module)
   if not ok then
     ReportError(moduleName .. "." .. methodName, result)
     return false
   end
-  return result ~= false
+  if not CanAccess(result) then
+    ReportError(moduleName .. "." .. methodName, "returned inaccessible status")
+    return false
+  end
+  if result == nil then return true end
+  if type(result) ~= "boolean" then
+    ReportError(moduleName .. "." .. methodName, "returned non-boolean status")
+    return false
+  end
+  return result
 end
 
 local function ReadNamespaceBoolean(namespace, methodName)
@@ -422,6 +434,7 @@ local function SetDecorativeHidden(object, hidden)
   if not CanUseObject(object) then return false end
 
   local state = artState[object]
+  if not hidden and not state then return true end
   if not state then
     state = {}
     artState[object] = state
@@ -436,11 +449,16 @@ local function SetDecorativeHidden(object, hidden)
     return true
   end
 
-  if state.applied and currentAlpha == 0 and state.originalAlpha ~= nil then
+  if not state.applied then
+    artState[object] = nil
+    return true
+  end
+  if currentAlpha == nil then return false end
+  if currentAlpha == 0 and state.originalAlpha ~= nil then
     if not SafeCall(object, "SetAlpha", state.originalAlpha) then return false end
   end
-  state.applied = false
-  state.originalAlpha = nil
+
+  artState[object] = nil
   return true
 end
 
@@ -501,17 +519,18 @@ end
 
 function ns.ApplyAll()
   nativePresentationReason = DetectNativePresentation()
+  refreshNeedsFullApply = false
+  CancelRefreshTimer()
 
   if IsCombatLocked() then
     pendingFullApply = true
+    pendingGeometryRefresh = false
     ApplyOwnedSafeState()
     return false
   end
 
   pendingFullApply = false
   pendingGeometryRefresh = false
-  refreshNeedsFullApply = false
-  CancelRefreshTimer()
 
   local maskOK = ApplyMask()
   local artOK = ApplyBlizzardArt()

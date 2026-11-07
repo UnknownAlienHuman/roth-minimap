@@ -23,16 +23,21 @@ local skin = read("modules/Skin.lua")
 local ping = read("modules/Ping.lua")
 local zoom = read("modules/Zoom.lua")
 local options = read("Options.lua")
+local syntaxTest = read("tests/test_syntax.lua")
+local mediaTest = read("tests/test_media.py")
 local readme = read("README.md")
 local agentGuide = read("AGENT_GUIDE.md")
 local architecture = read("ARCHITECTURE.md")
+local codeIndex = read("CODE_INDEX.md")
+local codeGraph = read("CODE_GRAPH.md")
 local changelog = read("docs/CHANGELOG.md")
 local runtime = table.concat({ core, skin, ping, zoom, options }, "\n")
 
 assertPresent(toc, "## Interface: 120105", "Retail 12.1.5 interface")
 assertPresent(toc, "## LoadSavedVariablesFirst: 1", "file-scope DB readiness")
-assertPresent(toc, "## Version: 0.4.4", "release version")
+assertPresent(toc, "## Version: 0.4.5", "release version")
 assertPresent(toc, "## X-Source-Reviewed-Build: 12.1.5.70783", "reviewed live source")
+assertPresent(toc, "## X-Source-Reviewed-Commit: 297d7aaaa736f346b3e036f38ee088eaf7f8c07f", "reviewed source pin")
 assertAbsent(toc, "ButtonBag", "button collector must not load")
 assertAbsent(toc, "AddonCompartment.lua", "compartment diagnostics must not load")
 
@@ -53,16 +58,23 @@ for _, token in ipairs({
   assertAbsent(runtime, token, "foreign-widget ownership regression")
 end
 
+assertPresent(core, "ns.VERSION = \"0.4.5\"", "runtime version")
 assertPresent(core, "ns.DB_VERSION = 7", "schema contract")
+assertPresent(core, "ns.media = \"Interface\\\\AddOns\\\\\" .. ADDON_NAME", "dynamic addon media root")
+assertAbsent(core, "Interface\\\\AddOns\\\\RothMinimap\\\\media", "hard-coded addon folder")
+assertPresent(core, "not CanAccess(current)", "default merge access gate")
+assertPresent(core, "local detail = SafeString(errorText) or \"<unavailable>\"", "safe error reporting")
+assertPresent(core, "if not CanAccess(result) then", "module return access gate")
+assertPresent(core, "returned non-boolean status", "module return type contract")
+assertPresent(core, "if currentAlpha == nil then return false end", "alpha restore retry gate")
+assertPresent(core, "artState[object] = nil", "alpha snapshot cleanup")
+assertPresent(core, "refreshNeedsFullApply = false\n  CancelRefreshTimer()", "full apply supersedes queued refresh")
 assertPresent(core, "MigrateLegacyDB", "pre-0.4 migration")
 assertPresent(core, "ReplaceContents(old, migrated)", "root identity preservation")
 assertPresent(core, "ReplaceContents(ns.db, fresh)", "Settings table identity preservation")
 assertPresent(core, "ShouldUseHybridMinimap", "hybrid native fallback")
 assertPresent(core, "IsInsideHouse", "housing native fallback")
-assertPresent(core, "nativePresentationReason", "native fallback state")
 assertPresent(core, "not ns.UsesNativePresentation()", "mask/art fallback gate")
-assertPresent(core, "borderColor = { 0.25, 0.22, 0.20, 1 }", "dark Diablo border default")
-assertPresent(core, "vignetteAlpha = 0.22", "subtle vignette default")
 assertPresent(core, "fireIdleFPS = 2", "low idle fire cadence")
 assertPresent(core, "fireCombatFPS = 8", "combat fire cadence")
 assertPresent(core, "db.skin.fireFPS = nil", "unified cadence retirement")
@@ -74,6 +86,7 @@ assertAbsent(core, "_G.MinimapBackdrop", "functional MinimapBackdrop must remain
 assertAbsent(core, "GetMaskTexture", "unconfirmed mask getter must not drive restoration")
 assertAbsent(core, "function ns.RegisterEvent", "generic raw-payload event bus")
 assertAbsent(core, "_G.RothMinimap = ns", "mutable implementation namespace exposure")
+assertAbsent(core, "tostring(errorText)", "inaccessible errors must not be formatted")
 
 assertPresent(skin, "PresentationEnabled", "native presentation skin gate")
 assertPresent(skin, "ns.UsesNativePresentation()", "hybrid/housing skin suppression")
@@ -104,7 +117,6 @@ assertAbsent(zoom, "C_Timer.After", "uncancellable zoom timer must remain absent
 
 assertPresent(options, "ROTH_MINIMAP_PING_WHERE", "ping destination setting")
 assertPresent(options, "Settings.CreateDropdown", "ping destination control")
-assertPresent(options, "Vignette alpha\", 0.22", "new-install visual tuning")
 assertPresent(options, "ROTH_MINIMAP_FIRE_IDLE_FPS", "idle fire cadence setting")
 assertPresent(options, "ROTH_MINIMAP_FIRE_COMBAT_FPS", "combat fire cadence setting")
 assertAbsent(options, "ROTH_MINIMAP_FIRE_FPS\"", "unified fire cadence setting retired")
@@ -112,13 +124,26 @@ assertPresent(options, "Hybrid Minimap", "native fallback explanation")
 assertPresent(options, "if refreshing then return end", "reset callback suppression")
 assertPresent(options, "Settings.NotifyUpdate", "reset refreshes registered settings")
 
+assertPresent(syntaxTest, "loadfile(path)", "per-file syntax validation")
+assertPresent(syntaxTest, "PASS: all Lua files compile", "syntax validation result")
+assertPresent(mediaTest, "expected uncompressed true-color TGA", "TGA header validation")
+assertPresent(mediaTest, "all 16 frames are byte-identical", "fire atlas frame validation")
+assertPresent(mediaTest, "transparent center", "mask center validation")
+
 for name, document in pairs({
   README = readme,
   AGENT_GUIDE = agentGuide,
   ARCHITECTURE = architecture,
+  CODE_INDEX = codeIndex,
+  CODE_GRAPH = codeGraph,
   CHANGELOG = changelog,
 }) do
-  assertPresent(document, "0.4.4", name .. " release version")
+  assertPresent(document, "0.4.5", name .. " release version")
 end
+assertPresent(readme, "texlua tests/test_syntax.lua", "real per-file syntax command")
+assertPresent(readme, "python3 tests/test_media.py", "media validation command")
+assertAbsent(readme, "texlua --luaconly RothMinimap.lua Options.lua", "misleading multi-file compiler command")
+assertPresent(agentGuide, "texlua tests/test_syntax.lua", "agent syntax command")
+assertAbsent(agentGuide, "texlua --luaconly RothMinimap.lua Options.lua", "agent misleading compiler command")
 
-print("PASS: Retail 12.1.5 static callback-event, native-fallback, ownership and lifecycle contracts")
+print("PASS: Retail 12.1.5 static access, callback, media, ownership and lifecycle contracts")

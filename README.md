@@ -2,17 +2,22 @@
 
 Edit-Mode-compatible minimap presentation for World of Warcraft Retail 12.1.5.
 
-Roth Minimap adds a square mask, restrained Diablo-style art, an opaque ping notification, and an optional reset after Blizzard's native mouse-wheel zoom. Blizzard remains the sole owner of `MinimapCluster` geometry, native input, native widgets, and third-party minimap buttons.
+Roth Minimap adds a square mask, restrained Diablo-style art, an opaque ping notification, and an optional reset after Blizzard's native mouse-wheel zoom. Blizzard remains the sole owner of `MinimapCluster` geometry, native input, native widgets, Hybrid Minimap, housing overlays, and third-party minimap buttons.
 
 ## Compatibility
 
 - Retail / Midnight 12.1.5
 - Interface `120105`
-- Addon version `0.4.4`
+- Addon version `0.4.5`
 - SavedVariables schema `7`
 - Source-reviewed Blizzard live build `12.1.5.70783`
+- Source pin `Gethe/wow-ui-source@297d7aaaa736f346b3e036f38ee088eaf7f8c07f`
 - External dependencies: none
 - In-client runtime matrix: **NOT-RUN**
+
+## Installation
+
+Place the addon folder under `World of Warcraft/_retail_/Interface/AddOns/`. The runtime derives media paths from the actual addon folder name, so a renamed folder does not break bundled textures.
 
 ## Ownership
 
@@ -25,18 +30,18 @@ The addon does not scan frame trees, collect minimap buttons, reparent foreign c
 - `MinimapCompassTexture`;
 - `MinimapCluster.BorderTop`.
 
-`MinimapBackdrop` is deliberately untouched because it owns housing and expansion UI descendants.
+The original accessible alpha is retained until a safe restore succeeds. A temporarily inaccessible read does not discard the snapshot. `MinimapBackdrop` is deliberately untouched because it owns housing and expansion UI descendants.
 
 ## Native-presentation fallback
 
-Blizzard Hybrid Minimap uses a separate `MapCanvas` and its own circular mask. Indoor housing also adds a native static overlay. Roth Minimap cannot safely reshape either foreign surface.
+Blizzard Hybrid Minimap uses a separate `MapCanvas` and its own circular mask. Indoor housing adds a native static overlay. Roth Minimap does not reshape either foreign surface.
 
-While either mode is active, version 0.4.4 automatically:
+While either mode is active, the addon:
 
-- restores the default native minimap mask;
-- restores the exact decorative alpha values previously hidden by the addon;
-- hides only the addon-owned border, runes, fire, pulse, and vignette;
-- leaves ping and bounded zoom reset available.
+- restores the known native minimap mask;
+- restores exact decorative alpha values previously hidden by Roth Minimap;
+- hides only addon-owned border, runes, fire, pulse, and vignette;
+- leaves the fixed ping notification and bounded zoom reset available.
 
 Normal square presentation returns on the next full lifecycle refresh after the native mode ends.
 
@@ -54,7 +59,7 @@ The 4×4 fire-atlas ticker uses separate cadence limits:
 
 ## Ping
 
-`MINIMAP_PING` is registered through the current callback-event API. Its secret payload is ignored completely. The addon displays only fixed ordinary text:
+`MINIMAP_PING` is registered through the callback-event API. Its secret payload is ignored completely. The addon displays only fixed ordinary text:
 
 ```text
 Map ping received
@@ -83,14 +88,17 @@ It does not call `EnableMouseWheel`, duplicate the wheel step, hard-code the max
 ## Validation
 
 ```text
-texlua --luaconly RothMinimap.lua Options.lua modules/Skin.lua modules/Ping.lua modules/Zoom.lua tests/test_contracts_12_1_5.lua tests/runtime_stubs_env.lua tests/test_runtime_stubs.lua
+texlua tests/test_syntax.lua
 texlua tests/test_contracts_12_1_5.lua
 texlua tests/test_runtime_stubs.lua
+python3 tests/test_media.py
 ```
 
-Offline checks cover schema migration, adaptive idle/combat fire cadence, Settings identity, callback-event ping registration, secret payload opacity, native fallback, draw order, visibility, zoom, combat deferral, coalescing, and reset.
+`tests/test_syntax.lua` compiles every Lua file separately. `tests/test_media.py` validates TGA dimensions, format, alpha channels, square-mask shape, and the 4×4 fire atlas. GitHub Actions runs the same four gates on `main` and pull requests.
 
-Live testing is still required for actual client build capture, Edit Mode profiles, hybrid/housing rendering, atlas alignment, taint/forbidden errors, logout persistence, and profiler metrics.
+Offline checks cover schema migration, dynamic media paths, adaptive fire cadence, Settings identity, callback-event ping registration, secret payload opacity, exact alpha restoration, native fallback, draw order, visibility, zoom, combat deferral, refresh coalescing, and reset.
+
+Live testing is still required for actual client build capture, Edit Mode profiles, hybrid/housing rendering, atlas alignment, taint/forbidden errors, logout persistence, and profiler measurements.
 
 ## Developer documentation
 
