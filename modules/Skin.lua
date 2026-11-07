@@ -1,4 +1,4 @@
--- Roth Minimap additive skin for Retail 12.1.5.
+-- Roth Minimap layered "Obsidian Ember" skin for Retail 12.1.5.
 -- Every region in this file is addon-owned and noninteractive.
 
 local _, ns = ...
@@ -7,7 +7,11 @@ local M = ns.skin
 local U = ns.util
 
 local frame
+local shadow
+local ambientGlow
+local charEdge
 local border
+local borderHighlight
 local runes
 local fireTexture
 local pulseTexture
@@ -19,21 +23,32 @@ local fireIndex = 0
 local inCombat = type(InCombatLockdown) == "function" and InCombatLockdown() or false
 local geometryReady = false
 
-local FIRE_ATLAS = ns.media .. "RM_DIABLO_FIRE_ATLAS_512_HOLE_NORMAL.tga"
+local FIRE_ATLAS = ns.media .. "RM_DIABLO_FIRE_ATLAS_512_HOLE_THIN.tga"
 local BORDER_TEXTURE = ns.media .. "RM_DIABLO_BORDER_512.tga"
+local CHAR_TEXTURE = ns.media .. "RM_DIABLO_CHAR_512.tga"
 local RUNES_TEXTURE = ns.media .. "RM_DIABLO_RUNES_512.tga"
 local VIGNETTE_TEXTURE = ns.media .. "RM_VIGNETTE_SQUARE_512.tga"
 local GLOW_TEXTURE = ns.media .. "RM_DIABLO_FIRE_GLOW_512.tga"
 
-local function SetColor(texture, color)
+local function ReadColor(color, fallbackR, fallbackG, fallbackB, fallbackA)
   local source = U.SafeTable(color)
-  if not texture or not source then return end
-  texture:SetVertexColor(
-    U.SafeNumber(source[1]) or 1,
-    U.SafeNumber(source[2]) or 1,
-    U.SafeNumber(source[3]) or 1,
-    U.SafeNumber(source[4]) or 1
-  )
+  if not source then return fallbackR, fallbackG, fallbackB, fallbackA end
+  return U.SafeNumber(source[1]) or fallbackR,
+    U.SafeNumber(source[2]) or fallbackG,
+    U.SafeNumber(source[3]) or fallbackB,
+    U.SafeNumber(source[4]) or fallbackA
+end
+
+local function SetColor(texture, color, alphaOverride)
+  if not texture then return end
+  local r, g, b, a = ReadColor(color, 1, 1, 1, 1)
+  texture:SetVertexColor(r, g, b, alphaOverride ~= nil and alphaOverride or a)
+end
+
+local function SetAccentColor(texture, color)
+  if not texture then return end
+  local r, g, b = ReadColor(color, 1, 0.34, 0.10, 1)
+  texture:SetVertexColor(r, g, b, 1)
 end
 
 local function PresentationEnabled()
@@ -82,14 +97,23 @@ local function SetFireFrame(index)
   fireTexture:SetTexCoord(column * step, (column + 1) * step, row * step, (row + 1) * step)
 end
 
+local function CurrentFireAlpha()
+  SyncCombatState()
+  local db = ns.db and ns.db.skin
+  if not db then return 0 end
+  local alpha = inCombat and db.fireCombatAlpha or db.fireIdleAlpha
+  return U.clamp(U.SafeNumber(alpha) or 0, 0, 1)
+end
+
 local function FireEnabled()
   local db = ns.db and ns.db.skin
-  return PresentationEnabled() and db.fire
+  return PresentationEnabled() and db.fire == true
 end
 
 local function StartFireTicker()
   local db = ns.db and ns.db.skin
-  if not (FireEnabled() and IsEffectivelyVisible()) then
+  local alpha = CurrentFireAlpha()
+  if not (FireEnabled() and alpha > 0.001 and IsEffectivelyVisible()) then
     StopFireTicker()
     return
   end
@@ -105,8 +129,9 @@ local function StartFireTicker()
   StopFireTicker()
   fireInterval = interval
   fireTicker = C_Timer.NewTicker(interval, function()
-    if not (FireEnabled() and IsEffectivelyVisible()) then
-      if fireTexture and not FireEnabled() then fireTexture:Hide() end
+    if not (FireEnabled() and CurrentFireAlpha() > 0.001 and IsEffectivelyVisible()) then
+      if fireTexture then fireTexture:Hide() end
+      if ambientGlow then ambientGlow:Hide() end
       StopFireTicker()
       return
     end
@@ -117,18 +142,32 @@ end
 
 local function UpdateFire()
   if not fireTexture then return end
-  SyncCombatState()
-
   local db = ns.db and ns.db.skin
-  if not FireEnabled() then
+  local alpha = CurrentFireAlpha()
+
+  if not FireEnabled() or alpha <= 0.001 then
     fireTexture:Hide()
+    if ambientGlow then ambientGlow:Hide() end
+    if charEdge then
+      charEdge:SetShown(db and db.border == true)
+      charEdge:SetAlpha(db and db.border and 0.54 or 0)
+    end
     StopFireTicker()
     return
   end
 
-  local alpha = inCombat and db.fireCombatAlpha or db.fireIdleAlpha
-  fireTexture:SetAlpha(U.clamp(U.SafeNumber(alpha) or 0, 0, 1))
+  fireTexture:SetAlpha(alpha)
   fireTexture:Show()
+
+  if ambientGlow then
+    ambientGlow:SetAlpha(math.min(0.18, 0.012 + alpha * 0.42))
+    ambientGlow:Show()
+  end
+  if charEdge then
+    charEdge:SetAlpha(math.min(0.72, 0.54 + alpha * 0.30))
+    charEdge:Show()
+  end
+
   StartFireTicker()
 end
 
@@ -141,6 +180,36 @@ local function SyncDrawOrder()
   frame:SetFrameStrata(strata)
   frame:SetFrameLevel(level)
   return true
+end
+
+local function UpdateStaticLayers()
+  if not frame then return end
+  local db = ns.db and ns.db.skin
+  if not db then return end
+
+  local hasOuterArt = db.border or db.runes or db.fire
+  shadow:SetShown(hasOuterArt == true)
+  shadow:SetAlpha(hasOuterArt and 0.46 or 0)
+
+  charEdge:SetShown(db.border == true or db.fire == true)
+  charEdge:SetAlpha((db.border or db.fire) and 0.54 or 0)
+
+  border:SetShown(db.border == true)
+  SetColor(border, db.borderColor)
+
+  borderHighlight:SetShown(db.border == true)
+  SetAccentColor(borderHighlight, db.runesColor)
+  local _, _, _, runeAlpha = ReadColor(db.runesColor, 1, 0.34, 0.10, 0.16)
+  borderHighlight:SetAlpha(db.border and math.min(0.14, 0.06 + runeAlpha * 0.25) or 0)
+
+  runes:SetShown(db.runes == true)
+  SetColor(runes, db.runesColor)
+
+  SetAccentColor(ambientGlow, db.runesColor)
+  SetAccentColor(pulseTexture, db.runesColor)
+
+  vignette:SetShown(db.vignette == true)
+  vignette:SetAlpha(db.vignette and U.clamp(U.SafeNumber(db.vignetteAlpha) or 0, 0, 1) or 0)
 end
 
 local function OnSkinHidden()
@@ -160,22 +229,52 @@ local function Ensure()
   frame:SetScript("OnShow", UpdateFire)
   frame:SetScript("OnHide", OnSkinHidden)
 
-  border = frame:CreateTexture(nil, "ARTWORK", nil, 1)
+  shadow = frame:CreateTexture(nil, "BACKGROUND", nil, 0)
+  shadow:SetPoint("TOPLEFT", frame, "TOPLEFT", -8, 8)
+  shadow:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 8, -8)
+  shadow:SetTexture(GLOW_TEXTURE)
+  shadow:SetBlendMode("BLEND")
+  shadow:SetVertexColor(0, 0, 0, 1)
+  shadow:SetAlpha(0.46)
+
+  ambientGlow = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
+  ambientGlow:SetAllPoints(frame)
+  ambientGlow:SetTexture(GLOW_TEXTURE)
+  ambientGlow:SetBlendMode("ADD")
+  ambientGlow:SetAlpha(0)
+  ambientGlow:Hide()
+
+  charEdge = frame:CreateTexture(nil, "ARTWORK", nil, 0)
+  charEdge:SetAllPoints(frame)
+  charEdge:SetTexture(CHAR_TEXTURE)
+  charEdge:SetBlendMode("BLEND")
+  charEdge:SetVertexColor(0.82, 0.63, 0.46, 1)
+  charEdge:SetAlpha(0.54)
+
+  fireTexture = frame:CreateTexture(nil, "ARTWORK", nil, 1)
+  fireTexture:SetAllPoints(frame)
+  fireTexture:SetTexture(FIRE_ATLAS)
+  fireTexture:SetBlendMode("ADD")
+  fireTexture:SetVertexColor(1, 0.78, 0.58, 1)
+  SetFireFrame(0)
+
+  border = frame:CreateTexture(nil, "ARTWORK", nil, 2)
   border:SetAllPoints(frame)
   border:SetTexture(BORDER_TEXTURE)
+  border:SetBlendMode("BLEND")
 
-  runes = frame:CreateTexture(nil, "ARTWORK", nil, 2)
+  borderHighlight = frame:CreateTexture(nil, "ARTWORK", nil, 3)
+  borderHighlight:SetAllPoints(frame)
+  borderHighlight:SetTexture(BORDER_TEXTURE)
+  borderHighlight:SetBlendMode("ADD")
+  borderHighlight:SetAlpha(0.10)
+
+  runes = frame:CreateTexture(nil, "ARTWORK", nil, 4)
   runes:SetAllPoints(frame)
   runes:SetTexture(RUNES_TEXTURE)
   runes:SetBlendMode("ADD")
 
-  fireTexture = frame:CreateTexture(nil, "ARTWORK", nil, 3)
-  fireTexture:SetAllPoints(frame)
-  fireTexture:SetTexture(FIRE_ATLAS)
-  fireTexture:SetBlendMode("ADD")
-  SetFireFrame(0)
-
-  pulseTexture = frame:CreateTexture(nil, "ARTWORK", nil, 4)
+  pulseTexture = frame:CreateTexture(nil, "ARTWORK", nil, 5)
   pulseTexture:SetAllPoints(frame)
   pulseTexture:SetTexture(GLOW_TEXTURE)
   pulseTexture:SetBlendMode("ADD")
@@ -185,13 +284,13 @@ local function Ensure()
   local fadeIn = pulseGroup:CreateAnimation("Alpha")
   fadeIn:SetOrder(1)
   fadeIn:SetFromAlpha(0)
-  fadeIn:SetToAlpha(0.9)
-  fadeIn:SetDuration(0.08)
+  fadeIn:SetToAlpha(0.58)
+  fadeIn:SetDuration(0.10)
   local fadeOut = pulseGroup:CreateAnimation("Alpha")
   fadeOut:SetOrder(2)
-  fadeOut:SetFromAlpha(0.9)
+  fadeOut:SetFromAlpha(0.58)
   fadeOut:SetToAlpha(0)
-  fadeOut:SetDuration(0.28)
+  fadeOut:SetDuration(0.34)
   pulseGroup:SetScript("OnPlay", function() pulseTexture:Show() end)
   pulseGroup:SetScript("OnStop", ResetPulse)
   pulseGroup:SetScript("OnFinished", ResetPulse)
@@ -220,7 +319,7 @@ function M:UpdateGeometry()
   local height = U.SafeNumber(U.SafeGet(Minimap, "GetHeight"))
   if not width or not height or width <= 0 or height <= 0 then return false end
 
-  local outset = U.clamp(U.SafeNumber(ns.db.skin.outset) or 34, 0, 96)
+  local outset = U.clamp(U.SafeNumber(ns.db.skin.outset) or 28, 0, 96)
   local targetWidth = width + outset * 2
   local targetHeight = height + outset * 2
   local currentWidth = U.SafeNumber(U.SafeGet(frame, "GetWidth"))
@@ -234,7 +333,6 @@ function M:UpdateGeometry()
 end
 
 function M:Apply()
-  local db = ns.db and ns.db.skin
   if not PresentationEnabled() then
     self:Disable()
     return true
@@ -247,13 +345,7 @@ function M:Apply()
     return false
   end
 
-  border:SetShown(db.border == true)
-  SetColor(border, db.borderColor)
-  runes:SetShown(db.runes == true)
-  SetColor(runes, db.runesColor)
-  vignette:SetShown(db.vignette == true)
-  vignette:SetAlpha(db.vignette and U.clamp(U.SafeNumber(db.vignetteAlpha) or 0, 0, 1) or 0)
-
+  UpdateStaticLayers()
   frame:Show()
   UpdateFire()
   return true
@@ -261,19 +353,13 @@ end
 
 function M:ApplySafeState()
   if not frame then return true end
-  local db = ns.db and ns.db.skin
   if not PresentationEnabled() then
     self:Disable()
     return true
   end
 
-  if border and not db.border then border:Hide() end
-  if runes and not db.runes then runes:Hide() end
-  if vignette and not db.vignette then vignette:Hide() end
-  if not db.fire then
-    if fireTexture then fireTexture:Hide() end
-    StopFireTicker()
-  end
+  UpdateStaticLayers()
+  UpdateFire()
   return true
 end
 
