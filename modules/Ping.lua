@@ -133,7 +133,7 @@ end
 local function RegisterPing()
   if registered then return true end
   if type(callbackFrame.RegisterEventCallback) ~= "function" then return false end
-n  callbackFrame:RegisterEventCallback("MINIMAP_PING", OnPing)
+  callbackFrame:RegisterEventCallback("MINIMAP_PING", OnPing)
   registered = true
   return true
 end
