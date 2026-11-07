@@ -1,100 +1,77 @@
-# Roth Minimap architecture — 0.4.6
+# Roth Minimap architecture — 0.5.0
 
 ## Owners
 
-- `RothMinimap.lua`: schema migration, access gates, dynamic media root, transition-owned mask policy, native-mode detection, exact art restore, lifecycle coalescing, reset, status, and slash commands.
-- `modules/Skin.lua`: addon-owned border, runes, fire, pulse, and vignette.
-- `modules/Ping.lua`: callback-event registration and fixed-text toast/chat presentation.
+- `RothMinimap.lua`: schema 9, visual presets, migration, access gates, native-mode detection, mask/art ownership, lifecycle coalescing, reset, and commands.
+- `modules/Skin.lua`: addon-owned shadow, ember halo, charred rim, fire, frame, highlight, runes, pulse, and vignette.
+- `modules/Ping.lua`: secret-payload-safe callback registration and compact fixed-text toast/chat presentation.
 - `modules/Zoom.lua`: native wheel observation and one cancellable reset timer.
-- `Options.lua`: one session-lifetime Blizzard Settings category.
+- `Options.lua`: Blizzard Settings registration, preset application, and `Custom` transition after detailed edits.
 
-No generic event bus is used. Each feature owns its direct native signal and cleanup.
-
-## Ownership graph
+## Visual composition
 
 ```text
-Blizzard / Edit Mode
-  -> MinimapCluster geometry and settings
-  -> native Minimap input and wheel zoom step
-  -> native widgets, Hybrid Minimap, housing overlays
-  -> third-party minimap buttons
+BACKGROUND
+  shadow (black BLEND, extended 8 px)
+  ambient ember halo (ADD, bounded by visible fire alpha)
 
-Roth Minimap core
-  -> schema-8 ordinary preferences
-  -> media root derived from ADDON_NAME
-  -> transition-scoped Minimap mask writes
-  -> exact decorative-alpha snapshots
-  -> one coalesced lifecycle refresh
+ARTWORK
+  charred rim
+  thin 4x4 ember atlas
+  dark frame
+  low-alpha additive frame highlight
+  optional runes
+  event pulse
 
-feature modules
-  -> addon-created noninteractive presentation
-  -> bounded owned timer/ticker
+MINIMAP OVERLAY
+  clipped inner vignette
 ```
 
-## Mask state machine
+All regions are noninteractive. The frame follows accessible Minimap strata and level; native child widgets remain above it.
+
+## Preset model
+
+Named presets write explicit ordinary values into `ns.db.skin`. Runtime rendering reads only those values; there is no second hidden style authority.
 
 ```text
-no Roth mask write
-  + square feature disabled
-  -> no-op; preserve existing foreign mask
+select named preset
+  -> update frame/rune/fire/vignette values in place
+  -> notify existing Settings objects
+  -> apply once
 
-normal + square selected
-  -> SetMaskTexture(square)
-  -> mode = square
-
-square mode leaves / addon disables
-  -> SetMaskTexture(selected-build native default)
-  -> mode = none
-
-Hybrid/housing + square selected
-  -> SetMaskTexture(selected-build native default)
-  -> mode = native
-
-PLAYER_ENTERING_WORLD
-  -> mark current mode for one revalidation
+change detailed appearance control
+  -> preserve edited value
+  -> set preset = custom
+  -> apply once
 ```
 
-The public Minimap API has no selected exact getter contract, so arbitrary foreign-mask restoration is not claimed.
+Schema 9 upgrades schema-8 installations only when every old visual value still matches the previous defaults. Any detected customization is preserved and marked `custom`.
 
 ## Presentation state
 
 ```text
-normal native minimap
-  -> optional square mask
+normal native minimap + Roth square mode
+  -> addon square mask
   -> exact decorative art hidden
-  -> addon skin visible
+  -> layered frame visible
 
 Hybrid Minimap or indoor housing
-  -> known native default when Roth square mode is selected
-  -> exact decorative art restored
-  -> addon skin hidden
+  -> selected-build native mask when Roth owns square transition
+  -> decorative art restored
+  -> addon frame hidden
   -> foreign MapCanvas/masks/overlays untouched
-```
-
-## Alpha state machine
-
-```text
-ordinary visible alpha
-  -> snapshot
-  -> addon applies alpha 0
-
-restore requested
-  -> inaccessible alpha read: retain snapshot and fail closed
-  -> current alpha is still 0: restore exact snapshot
-  -> another owner changed alpha: preserve its value
-  -> clear snapshot only after a resolved restore decision
 ```
 
 ## Lifecycle
 
 ```text
 file load
-  -> schema-8 migration
+  -> schema migration
   -> module load
   -> Settings registration
 
 PLAYER_ENTERING_WORLD
-  -> invalidate mask mode
+  -> invalidate owned mask decision
   -> one coalesced full apply
 
 UI_SCALE_CHANGED
@@ -103,39 +80,29 @@ UI_SCALE_CHANGED
 EditMode.Exit / EditMode.SavedLayouts
   -> one coalesced addon-geometry refresh
 
-explicit full apply
-  -> cancel queued refresh
-  -> outside combat: apply once
-  -> in combat: keep one pending full apply and hide disabled owned work
-  -> lifecycle bursts in combat: update pending flags without creating timers
-
-PLAYER_REGEN_ENABLED
-  -> drain latest pending state once
+combat
+  -> no structural geometry work
+  -> collapse requests into one pending state
+  -> update only addon-owned safe presentation
+  -> drain once after PLAYER_REGEN_ENABLED
 ```
 
-## Persistence
+## Security and ownership boundary
 
-Schema 8 preserves Settings-bound root/nested table identity. Legacy border/rune alpha `0` becomes a disabled layer with a usable positive color alpha; enabling the current checkbox therefore produces visible output.
+`MINIMAP_PING` uses `RegisterEventCallback`; every payload argument is ignored at the callback boundary. No raw payload enters a generic bus, cache, timer, logger, or serializer.
 
-## Security boundary
-
-`MINIMAP_PING` uses `RegisterEventCallback`, not raw `RegisterEvent`. Every secret payload argument is ignored at the callback boundary.
-
-Module results must be accessible booleans or `nil`. Error reporting accepts only accessible ordinary strings and never formats an inaccessible value.
-
-No borrowed event payload, foreign frame, callback handle, timer, animation, or texture is persisted.
+No code scans frame trees, reparents foreign objects, replaces native methods, mutates `MinimapBackdrop`, owns native wheel enablement, or persists Blizzard geometry.
 
 ## Performance boundary
 
-- fire ticker: idle 1–8 FPS / combat 1–20 FPS, visible-only;
-- zoom: one cancellable timer, rescheduled only when its configured delay changes;
-- lifecycle: one zero-delay coalescing timer;
-- frames/textures/animations: created once;
-- mask writes: only transitions plus world-entry revalidation;
-- no frame-tree enumeration, `OnUpdate`, generic polling, or recursive timers.
+- one fire ticker, absent at zero alpha or while hidden;
+- one zoom timer;
+- one coalesced lifecycle timer;
+- no `OnUpdate`, polling, recursive timers, or repeated frame/texture creation;
+- additional 0.5.0 depth layers are static textures and do not add periodic work.
 
 ## Verification boundary
 
-`tests/test_syntax.lua` discovers every Lua file recursively. `tests/test_media.py` checks the exact TGA manifest, headers, dimensions, alpha, mask shape, and every atlas frame. Static and offline runtime tests cover ownership and modeled lifecycle behavior. GitHub Actions executes all gates with a pinned action and read-only token.
+`tests/test_syntax.lua` discovers every Lua file. Static tests enforce ownership and design contracts. Runtime stubs exercise presets, schema migration, layer assets, combat, ping, mask, zoom, and reset behavior. `tests/test_media.py` enforces the exact TGA manifest and visible alpha in every thin-atlas frame.
 
-Live taint, rendering, native callback ordering, SavedVariables serialization, and profiler measurements remain `NOT-RUN` until recorded on a named client build.
+Live rendering, taint, native ordering, SavedVariables serialization, and profiler measurements remain `NOT-RUN` until captured on a named client build.
