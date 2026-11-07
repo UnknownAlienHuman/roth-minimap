@@ -1,58 +1,50 @@
 # Changelog
 
-## 0.4.6 — mask ownership and migration verification
+## 0.5.0 — Obsidian Ember visual redesign
 
-- Stopped unconditional default-mask writes when the addon starts disabled or the square-mask feature is unselected.
-- Added transition-owned mask state: square application, selected native fallback, disable restore, and one world-entry revalidation.
-- Added schema 8 to repair disabled border/rune layers whose previous migration also stored color alpha `0`.
-- Legacy alpha `0` now maps to a disabled layer with a usable positive alpha, so the current checkbox can show it again.
-- Propagated failures from geometry safe-state cleanup instead of silently returning success.
-- Gated Settings refresh errors before formatting, matching the core ordinary-only error boundary.
-- Synchronized fire combat state at point of use to avoid event-order-dependent transient combat cadence.
-- Collapsed lifecycle refreshes received in combat directly into one pending state without zero-delay timer churn.
-- Rescheduled a pending zoom reset only when its configured delay actually changes.
-- Reworked the syntax gate to discover every Lua file recursively on Windows and POSIX hosts.
-- Strengthened TGA validation with an exact media manifest and visible-alpha checks for every fire-atlas frame.
-- Replaced the synthetic zoom test with an actual native-wheel-before-hook stub, proving one wheel step remains one native step.
-- Added TOC path existence checks and mask-write-count regression coverage.
-- Pinned the GitHub Actions runner image and checkout action; disabled persisted checkout credentials.
+- Replaced the flat visual stack with a deliberate depth hierarchy: soft shadow, bounded ember halo, charred rim, thin fire, dark frame/highlight, optional runes, and inner vignette.
+- Added four coherent presets: `Obsidian Ember`, `Inferno`, `Runebound`, and `Clean`; detailed edits automatically become `Custom`.
+- Added schema 9. Exact 0.4.6 defaults upgrade to the new default preset; detected custom appearances are preserved unchanged.
+- Replaced the normal fire atlas with the thinner atlas and restored the charred-rim texture as an intentional runtime asset.
+- Reduced new/reset idle fire alpha from `0.14` to `0.05`, combat alpha from `0.42` to `0.26`, vignette from `0.22` to `0.16`, and frame expansion from `34` to `28`.
+- Suppressed the fire ticker when the selected fire alpha is zero.
+- Reworked the ping toast into a compact, clamped, palette-aware notification that follows native Minimap draw order.
+- Expanded offline tests for preset application, automatic custom-state transitions, layered texture order, schema-9 migration, and compact toast behavior.
 
-## 0.4.5 — media paths, alpha restoration and executable validation
+## 0.4.6 — ownership and migration closure
 
-- Derived bundled media paths from the actual addon folder name.
-- Retained decorative alpha snapshots across temporarily inaccessible reads.
-- Gated module return values and error formatting through ordinary-value checks.
-- Made direct full apply cancel stale queued refresh work.
-- Added per-file Lua syntax, static, runtime, and binary TGA validation in GitHub Actions.
+- Prevented disabled/unselected square-mask mode from overwriting a third-party mask.
+- Added transition-owned mask writes and world-entry revalidation.
+- Added schema 8 repair for zero-alpha disabled border/rune migrations.
+- Removed combat-time lifecycle timer creation and synchronized fire cadence with actual combat lockdown.
+- Hardened syntax discovery, exact media manifests, native-wheel tests, and pinned read-only CI.
 
-## 0.4.4 — adaptive fire cadence and source continuity
+## 0.4.5 — media and validation hardening
 
-- Split the old unified fire FPS into idle and combat cadences.
-- New/reset defaults use 2 FPS idle smolder and 8 FPS combat fire.
-- Schema 7 migrated pre-0.4 `outFPS`/`combatFPS` and schema-6 `fireFPS`.
-- Updated source-review metadata to build `12.1.5.70783`.
+- Derived media paths from the actual addon name.
+- Retained decorative-alpha snapshots across temporarily inaccessible reads.
+- Added executable Lua, runtime, static, and binary TGA validation in GitHub Actions.
 
-## 0.4.3 — callback-event and native-mode hardening
+## 0.4.4 — adaptive fire cadence
 
-- Registered secret `MINIMAP_PING` through `RegisterEventCallback`/`UnregisterEventCallback`.
-- Added automatic native-presentation fallback for Blizzard Hybrid Minimap and indoor housing.
-- Tuned new/reset defaults to a dark Diablo border and subtler vignette.
+- Split idle and combat fire FPS.
+- Updated selected Blizzard source to `12.1.5.70783`.
 
-## 0.4.2 — second ownership and lifecycle audit
+## 0.4.3 — callback event and native fallback
 
-- Removed the generic raw-payload event bus.
-- Added complete pre-0.4 migration and in-place reset.
-- Added ping-destination dropdown.
-- Hardened combat deferral, draw order, pulse cleanup and documentation parity.
+- Moved secret `MINIMAP_PING` to the callback-event API.
+- Added Hybrid Minimap and indoor-housing fallback.
 
-## 0.4.1 — Retail 12.1.5 contract update
+## 0.4.2 — ownership and lifecycle audit
 
-- Updated Interface to `120105`.
-- Fixed module clamp semantics, exact decorative ownership, hidden ticker cleanup and duplicate wheel zoom.
-- Removed stale ButtonBag-era documentation and unused media.
+- Removed the generic event bus.
+- Added complete pre-0.4 migration, in-place reset, and Settings callback suppression.
+
+## 0.4.1 — Retail 12.1.5 update
+
+- Updated Interface metadata and fixed clamp, ticker, art ownership, and duplicate-wheel defects.
 
 ## 0.4.0 — ownership rewrite
 
-- Removed ButtonBag and AddonCompartment diagnostics.
-- Returned native geometry/widgets/buttons to Blizzard/Edit Mode.
-- Kept only additive mask, skin, opaque ping and bounded zoom behavior.
+- Removed ButtonBag and native widget/layout ownership.
+- Kept only additive mask, skin, opaque ping, and bounded zoom behavior.

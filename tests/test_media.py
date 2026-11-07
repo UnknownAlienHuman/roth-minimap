@@ -9,10 +9,11 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = {
     "media/mask_square.tga": (256, 256),
     "media/RM_DIABLO_BORDER_512.tga": (512, 512),
+    "media/RM_DIABLO_CHAR_512.tga": (512, 512),
     "media/RM_DIABLO_RUNES_512.tga": (512, 512),
     "media/RM_DIABLO_FIRE_GLOW_512.tga": (512, 512),
     "media/RM_VIGNETTE_SQUARE_512.tga": (512, 512),
-    "media/RM_DIABLO_FIRE_ATLAS_512_HOLE_NORMAL.tga": (512, 512),
+    "media/RM_DIABLO_FIRE_ATLAS_512_HOLE_THIN.tga": (512, 512),
 }
 
 
@@ -92,7 +93,7 @@ def main() -> None:
         for path in (ROOT / "media").glob("*.tga")
     }
     assert actual == set(EXPECTED), (
-        f"media manifest mismatch: missing={sorted(set(EXPECTED) - actual)} "
+        f"unexpected TGA manifest: missing={sorted(set(EXPECTED) - actual)} "
         f"unexpected={sorted(actual - set(EXPECTED))}"
     )
 
@@ -108,7 +109,7 @@ def main() -> None:
             validate_alpha_shape(relative, alpha)
 
     atlas_pixels, _, atlas_width, atlas_height = loaded[
-        "media/RM_DIABLO_FIRE_ATLAS_512_HOLE_NORMAL.tga"
+        "media/RM_DIABLO_FIRE_ATLAS_512_HOLE_THIN.tga"
     ]
     validate_atlas(atlas_pixels, atlas_width, atlas_height)
 
@@ -116,7 +117,7 @@ def main() -> None:
         visible = sum(value > 0 for value in alpha)
         print(f"{relative}: visible_alpha={visible}/{len(alpha)}")
 
-    print("PASS: TGA manifest, dimensions, alpha channels, mask shape and fire atlas structure")
+    print("PASS: TGA manifest, dimensions, alpha channels, mask shape and thin fire atlas structure")
 
 
 if __name__ == "__main__":

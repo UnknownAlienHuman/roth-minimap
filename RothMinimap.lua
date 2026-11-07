@@ -4,12 +4,94 @@
 local ADDON_NAME, ns = ...
 ns = ns or {}
 
-ns.VERSION = "0.4.6"
-ns.DB_VERSION = 8
+ns.VERSION = "0.5.0"
+ns.DB_VERSION = 9
 ns.media = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\"
 
 local DEFAULT_MASK = "Interface\\Minimap\\UI-Minimap-Background"
 local SQUARE_MASK = ns.media .. "mask_square.tga"
+
+local SKIN_PRESETS = {
+  obsidian = {
+    border = true,
+    runes = false,
+    vignette = true,
+    fire = true,
+    borderColor = { 0.23, 0.18, 0.14, 1 },
+    runesColor = { 1.00, 0.34, 0.10, 0.16 },
+    vignetteAlpha = 0.16,
+    fireIdleAlpha = 0.05,
+    fireCombatAlpha = 0.26,
+    fireIdleFPS = 2,
+    fireCombatFPS = 8,
+    outset = 28,
+  },
+  inferno = {
+    border = true,
+    runes = false,
+    vignette = true,
+    fire = true,
+    borderColor = { 0.31, 0.15, 0.07, 1 },
+    runesColor = { 1.00, 0.25, 0.04, 0.20 },
+    vignetteAlpha = 0.20,
+    fireIdleAlpha = 0.10,
+    fireCombatAlpha = 0.42,
+    fireIdleFPS = 3,
+    fireCombatFPS = 12,
+    outset = 30,
+  },
+  runic = {
+    border = true,
+    runes = true,
+    vignette = true,
+    fire = true,
+    borderColor = { 0.18, 0.16, 0.15, 1 },
+    runesColor = { 1.00, 0.44, 0.11, 0.28 },
+    vignetteAlpha = 0.17,
+    fireIdleAlpha = 0.035,
+    fireCombatAlpha = 0.18,
+    fireIdleFPS = 2,
+    fireCombatFPS = 8,
+    outset = 30,
+  },
+  minimal = {
+    border = true,
+    runes = false,
+    vignette = true,
+    fire = false,
+    borderColor = { 0.20, 0.19, 0.18, 1 },
+    runesColor = { 1.00, 0.34, 0.10, 0.16 },
+    vignetteAlpha = 0.10,
+    fireIdleAlpha = 0,
+    fireCombatAlpha = 0,
+    fireIdleFPS = 1,
+    fireCombatFPS = 1,
+    outset = 20,
+  },
+}
+
+local VALID_PRESETS = {
+  obsidian = true,
+  inferno = true,
+  runic = true,
+  minimal = true,
+  custom = true,
+}
+
+local LEGACY_SKIN_DEFAULTS = {
+  border = true,
+  runes = false,
+  vignette = true,
+  fire = true,
+  borderColor = { 0.25, 0.22, 0.20, 1 },
+  runesColor = { 1.00, 0.35, 0.12, 0.20 },
+  vignetteAlpha = 0.22,
+  fireIdleAlpha = 0.14,
+  fireCombatAlpha = 0.42,
+  fireIdleFPS = 2,
+  fireCombatFPS = 8,
+  outset = 34,
+}
 
 local DEFAULTS = {
   version = ns.DB_VERSION,
@@ -18,19 +100,20 @@ local DEFAULTS = {
   hideBlizzardArt = true,
 
   skin = {
+    preset = "obsidian",
     enabled = true,
     border = true,
     runes = false,
     vignette = true,
     fire = true,
-    borderColor = { 0.25, 0.22, 0.20, 1 },
-    runesColor = { 1, 0.35, 0.12, 0.20 },
-    vignetteAlpha = 0.22,
-    fireIdleAlpha = 0.14,
-    fireCombatAlpha = 0.42,
+    borderColor = { 0.23, 0.18, 0.14, 1 },
+    runesColor = { 1.00, 0.34, 0.10, 0.16 },
+    vignetteAlpha = 0.16,
+    fireIdleAlpha = 0.05,
+    fireCombatAlpha = 0.26,
     fireIdleFPS = 2,
     fireCombatFPS = 8,
-    outset = 34,
+    outset = 28,
   },
 
   ping = {
@@ -170,9 +253,72 @@ local function CopyColor(value, fallback, alpha)
   }
 end
 
+local function ApplyPresetValues(skin, name)
+  if name == "custom" then
+    skin.preset = "custom"
+    return true
+  end
+
+  local preset = SKIN_PRESETS[name]
+  if not preset then return false end
+
+  skin.preset = name
+  skin.border = preset.border
+  skin.runes = preset.runes
+  skin.vignette = preset.vignette
+  skin.fire = preset.fire
+  skin.borderColor = CopyColor(preset.borderColor, preset.borderColor)
+  skin.runesColor = CopyColor(preset.runesColor, preset.runesColor)
+  skin.vignetteAlpha = preset.vignetteAlpha
+  skin.fireIdleAlpha = preset.fireIdleAlpha
+  skin.fireCombatAlpha = preset.fireCombatAlpha
+  skin.fireIdleFPS = preset.fireIdleFPS
+  skin.fireCombatFPS = preset.fireCombatFPS
+  skin.outset = preset.outset
+  return true
+end
+
+local function SameNumber(value, expected)
+  value = SafeNumber(value)
+  return value == nil or math.abs(value - expected) < 0.0001
+end
+
+local function SameBoolean(value, expected)
+  value = SafeBoolean(value)
+  return value == nil or value == expected
+end
+
+local function SameColor(value, expected)
+  local color = SafeTable(value)
+  if not color then return true end
+  for index = 1, 4 do
+    if not SameNumber(color[index], expected[index]) then return false end
+  end
+  return true
+end
+
+local function MatchesLegacySkinDefaults(skin)
+  if not skin then return false end
+  return SameBoolean(skin.border, LEGACY_SKIN_DEFAULTS.border)
+    and SameBoolean(skin.runes, LEGACY_SKIN_DEFAULTS.runes)
+    and SameBoolean(skin.vignette, LEGACY_SKIN_DEFAULTS.vignette)
+    and SameBoolean(skin.fire, LEGACY_SKIN_DEFAULTS.fire)
+    and SameColor(skin.borderColor, LEGACY_SKIN_DEFAULTS.borderColor)
+    and SameColor(skin.runesColor, LEGACY_SKIN_DEFAULTS.runesColor)
+    and SameNumber(skin.vignetteAlpha, LEGACY_SKIN_DEFAULTS.vignetteAlpha)
+    and SameNumber(skin.fireIdleAlpha, LEGACY_SKIN_DEFAULTS.fireIdleAlpha)
+    and SameNumber(skin.fireCombatAlpha, LEGACY_SKIN_DEFAULTS.fireCombatAlpha)
+    and SameNumber(skin.fireIdleFPS, LEGACY_SKIN_DEFAULTS.fireIdleFPS)
+    and SameNumber(skin.fireCombatFPS, LEGACY_SKIN_DEFAULTS.fireCombatFPS)
+    and SameNumber(skin.outset, LEGACY_SKIN_DEFAULTS.outset)
+end
+
 local function SanitizeDB(db)
   local previousVersion = SafeNumber(db.version)
   local rawSkin = SafeTable(db.skin)
+  local upgradeLegacyDefaults = previousVersion ~= nil
+    and previousVersion < 9
+    and MatchesLegacySkinDefaults(rawSkin)
   local unifiedFireFPS = rawSkin and SafeNumber(rawSkin.fireFPS)
   local existingIdleFPS = rawSkin and SafeNumber(rawSkin.fireIdleFPS)
   local existingCombatFPS = rawSkin and SafeNumber(rawSkin.fireCombatFPS)
@@ -192,6 +338,9 @@ local function SanitizeDB(db)
       db.skin.fireCombatFPS = unifiedFireFPS
     end
   end
+
+  local preset = SafeString(db.skin.preset)
+  db.skin.preset = preset and VALID_PRESETS[preset] and preset or "custom"
   db.skin.enabled = SafeBoolean(db.skin.enabled) ~= false
   db.skin.border = SafeBoolean(db.skin.border) ~= false
   db.skin.runes = SafeBoolean(db.skin.runes) == true
@@ -200,8 +349,7 @@ local function SanitizeDB(db)
   db.skin.borderColor = CopyColor(db.skin.borderColor, DEFAULTS.skin.borderColor)
   db.skin.runesColor = CopyColor(db.skin.runesColor, DEFAULTS.skin.runesColor)
 
-  -- Schema 8 repairs schema-4..7 migrations where alpha 0 disabled a layer
-  -- and also made the later Settings checkbox unable to show it again.
+  -- Schema 8 repaired old zero-alpha disabled layers. Preserve that repair.
   if previousVersion == nil or previousVersion < 8 then
     if not db.skin.border and db.skin.borderColor[4] <= 0 then
       db.skin.borderColor[4] = DEFAULTS.skin.borderColor[4]
@@ -217,6 +365,14 @@ local function SanitizeDB(db)
   db.skin.fireIdleFPS = math.floor(Clamp(db.skin.fireIdleFPS, DEFAULTS.skin.fireIdleFPS, 1, 8) + 0.5)
   db.skin.fireCombatFPS = math.floor(Clamp(db.skin.fireCombatFPS, DEFAULTS.skin.fireCombatFPS, 1, 20) + 0.5)
   db.skin.outset = math.floor(Clamp(db.skin.outset, DEFAULTS.skin.outset, 0, 96) + 0.5)
+
+  if previousVersion ~= nil and previousVersion < 9 then
+    if upgradeLegacyDefaults then
+      ApplyPresetValues(db.skin, "obsidian")
+    else
+      db.skin.preset = "custom"
+    end
+  end
 
   db.ping = SafeTable(db.ping) or {}
   MergeDefaults(db.ping, DEFAULTS.ping)
@@ -293,6 +449,8 @@ local function MigrateLegacyDB(old)
   local legacyFire = SafeTable(old.fire)
   local legacyPing = SafeTable(old.ping)
   local legacyZoom = SafeTable(old.zoom)
+
+  migrated.skin.preset = "custom"
 
   local enabled = FirstBoolean(old.enabled, general and general.enabled)
   if enabled ~= nil then migrated.enabled = enabled end
@@ -395,6 +553,12 @@ ns.util = {
   SafeGet = SafeGet,
   clamp = ClampValue,
 }
+
+function ns.ApplySkinPreset(name)
+  name = SafeString(name)
+  if not name or not VALID_PRESETS[name] then return false end
+  return ApplyPresetValues(ns.db.skin, name)
+end
 
 local function ReportError(scope, errorText)
   local detail = SafeString(errorText) or "<unavailable>"
@@ -539,9 +703,10 @@ local function ApplyModules()
 end
 
 local function ApplyOwnedSafeState()
-  CallModule("skin", "ApplySafeState")
-  CallModule("ping", "ApplySafeState")
-  CallModule("zoom", "ApplySafeState")
+  local skinOK = CallModule("skin", "ApplySafeState")
+  local pingOK = CallModule("ping", "ApplySafeState")
+  local zoomOK = CallModule("zoom", "ApplySafeState")
+  return skinOK and pingOK and zoomOK
 end
 
 local refreshTimer
@@ -642,6 +807,7 @@ function ns.GetStatus()
     enabled = ns.db.enabled,
     squareMask = ns.db.squareMask,
     hideBlizzardArt = ns.db.hideBlizzardArt,
+    skinPreset = ns.db.skin.preset,
     zoomReset = ns.db.zoom.autoReset,
     nativePresentation = nativePresentationReason,
     pendingApply = pendingFullApply or pendingGeometryRefresh,
@@ -697,10 +863,11 @@ SlashCmdList.ROTHMINIMAP = function(message)
   elseif message == "status" then
     local status = ns.GetStatus()
     print(string.format(
-      "Roth Minimap %s: enabled=%s square=%s hideArt=%s native=%s zoomReset=%s pending=%s",
+      "Roth Minimap %s: enabled=%s square=%s preset=%s hideArt=%s native=%s zoomReset=%s pending=%s",
       status.version,
       tostring(status.enabled),
       tostring(status.squareMask),
+      status.skinPreset or "custom",
       tostring(status.hideBlizzardArt),
       status.nativePresentation or "no",
       tostring(status.zoomReset),
