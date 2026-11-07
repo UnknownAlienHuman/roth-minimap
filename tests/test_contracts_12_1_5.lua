@@ -25,7 +25,6 @@ local zoom = read("modules/Zoom.lua")
 local options = read("Options.lua")
 local syntaxTest = read("tests/test_syntax.lua")
 local mediaTest = read("tests/test_media.py")
-local workflow = read(".github/workflows/validate.yml")
 local readme = read("README.md")
 local agentGuide = read("AGENT_GUIDE.md")
 local architecture = read("ARCHITECTURE.md")
@@ -143,11 +142,6 @@ assertPresent(mediaTest, "RM_DIABLO_FIRE_ATLAS_512_HOLE_THIN.tga", "thin atlas v
 assertAbsent(mediaTest, "RM_DIABLO_FIRE_ATLAS_512_HOLE_NORMAL.tga", "retired atlas absent from manifest")
 assertPresent(mediaTest, "unexpected TGA manifest", "exact media manifest")
 assertPresent(mediaTest, "frame {frame_index} has no visible alpha", "per-frame fire validation")
-
-assertPresent(workflow, "ubuntu-24.04", "stable validation runner")
-assertPresent(workflow, "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "pinned checkout action")
-assertPresent(workflow, "persist-credentials: false", "read-only checkout credentials")
-assertPresent(workflow, "contents: read", "read-only workflow permission")
 
 for name, document in pairs({
   README = readme,

@@ -13,6 +13,5 @@
 | `tests/runtime_stubs_env.lua` | Offline WoW API, Settings, animation, access, timer, and error stubs |
 | `tests/test_runtime_stubs.lua` | Schema-9 presets, layered assets, mask, callback, timer, combat, and reset behavior |
 | `tests/test_media.py` | Exact seven-file TGA manifest, dimensions, alpha, mask, and thin-atlas validation |
-| `.github/workflows/validate.yml` | Read-only pinned CI for all four gates |
 
 Retired: heavy default fire atlas, flat full-strength composition, ButtonBag, native geometry ownership, raw ping routing, recursive zoom, and hard-coded media roots.

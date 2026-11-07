@@ -110,7 +110,7 @@ texlua tests/test_runtime_stubs.lua
 python3 tests/test_media.py
 ```
 
-GitHub Actions runs the same gates with pinned, read-only checkout credentials. Offline coverage includes schema-9 preset migration, Settings identity, layered texture selection, zero-alpha ticker suppression, secret ping opacity, mask ownership, native fallback, combat deferral, native wheel behavior, and exact TGA manifest/frame validation.
+Run these gates locally before publishing. Offline coverage includes schema-9 preset migration, Settings identity, layered texture selection, zero-alpha ticker suppression, secret ping opacity, mask ownership, native fallback, combat deferral, native wheel behavior, and exact TGA manifest/frame validation.
 
 Live testing is still required for actual client rendering, Edit Mode profiles, Hybrid Minimap/housing presentation, atlas alignment, taint capture, logout persistence, and `C_AddOnProfiler` measurements.
 

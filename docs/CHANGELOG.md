@@ -17,13 +17,13 @@
 - Added transition-owned mask writes and world-entry revalidation.
 - Added schema 8 repair for zero-alpha disabled border/rune migrations.
 - Removed combat-time lifecycle timer creation and synchronized fire cadence with actual combat lockdown.
-- Hardened syntax discovery, exact media manifests, native-wheel tests, and pinned read-only CI.
+- Hardened syntax discovery, exact media manifests, native-wheel tests, and local validation.
 
 ## 0.4.5 — media and validation hardening
 
 - Derived media paths from the actual addon name.
 - Retained decorative-alpha snapshots across temporarily inaccessible reads.
-- Added executable Lua, runtime, static, and binary TGA validation in GitHub Actions.
+- Added executable Lua, runtime, static, and binary TGA validation scripts.
 
 ## 0.4.4 — adaptive fire cadence
 
