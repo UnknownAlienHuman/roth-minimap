@@ -4,8 +4,8 @@
 local ADDON_NAME, ns = ...
 ns = ns or {}
 
-ns.VERSION = "0.4.5"
-ns.DB_VERSION = 7
+ns.VERSION = "0.4.6"
+ns.DB_VERSION = 8
 ns.media = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\"
 
 local DEFAULT_MASK = "Interface\\Minimap\\UI-Minimap-Background"
@@ -171,13 +171,13 @@ local function CopyColor(value, fallback, alpha)
 end
 
 local function SanitizeDB(db)
+  local previousVersion = SafeNumber(db.version)
   local rawSkin = SafeTable(db.skin)
   local unifiedFireFPS = rawSkin and SafeNumber(rawSkin.fireFPS)
   local existingIdleFPS = rawSkin and SafeNumber(rawSkin.fireIdleFPS)
   local existingCombatFPS = rawSkin and SafeNumber(rawSkin.fireCombatFPS)
 
   MergeDefaults(db, DEFAULTS)
-  db.version = ns.DB_VERSION
   db.enabled = SafeBoolean(db.enabled) ~= false
   db.squareMask = SafeBoolean(db.squareMask) ~= false
   db.hideBlizzardArt = SafeBoolean(db.hideBlizzardArt) ~= false
@@ -199,6 +199,18 @@ local function SanitizeDB(db)
   db.skin.fire = SafeBoolean(db.skin.fire) ~= false
   db.skin.borderColor = CopyColor(db.skin.borderColor, DEFAULTS.skin.borderColor)
   db.skin.runesColor = CopyColor(db.skin.runesColor, DEFAULTS.skin.runesColor)
+
+  -- Schema 8 repairs schema-4..7 migrations where alpha 0 disabled a layer
+  -- and also made the later Settings checkbox unable to show it again.
+  if previousVersion == nil or previousVersion < 8 then
+    if not db.skin.border and db.skin.borderColor[4] <= 0 then
+      db.skin.borderColor[4] = DEFAULTS.skin.borderColor[4]
+    end
+    if not db.skin.runes and db.skin.runesColor[4] <= 0 then
+      db.skin.runesColor[4] = DEFAULTS.skin.runesColor[4]
+    end
+  end
+
   db.skin.vignetteAlpha = Clamp(db.skin.vignetteAlpha, DEFAULTS.skin.vignetteAlpha, 0, 1)
   db.skin.fireIdleAlpha = Clamp(db.skin.fireIdleAlpha, DEFAULTS.skin.fireIdleAlpha, 0, 1)
   db.skin.fireCombatAlpha = Clamp(db.skin.fireCombatAlpha, DEFAULTS.skin.fireCombatAlpha, 0, 1)
@@ -242,6 +254,7 @@ local function SanitizeDB(db)
   db.zoom.mousewheel = nil
   db.zoom.mode = nil
   db.zoom.interval = nil
+  db.version = ns.DB_VERSION
 end
 
 local function NewDB()
@@ -265,6 +278,12 @@ local function FirstNumber(...)
     if value ~= nil then return value end
   end
   return nil
+end
+
+local function PositiveAlpha(value, fallback)
+  value = SafeNumber(value)
+  if value and value > 0 then return value end
+  return fallback
 end
 
 local function MigrateLegacyDB(old)
@@ -292,17 +311,23 @@ local function MigrateLegacyDB(old)
     if border then
       local alpha = SafeNumber(border.alpha)
       migrated.skin.border = alpha == nil or alpha > 0
-      migrated.skin.borderColor = CopyColor(border.color, migrated.skin.borderColor, alpha)
+      migrated.skin.borderColor = CopyColor(
+        border.color,
+        migrated.skin.borderColor,
+        PositiveAlpha(alpha, migrated.skin.borderColor[4])
+      )
     end
 
     local runes = SafeTable(visual.runes)
     if runes then
       local runesEnabled = SafeBoolean(runes.enabled)
+      local alpha = FirstNumber(runes.outAlpha, runes.alpha)
       if runesEnabled ~= nil then migrated.skin.runes = runesEnabled end
+      if alpha ~= nil and alpha <= 0 then migrated.skin.runes = false end
       migrated.skin.runesColor = CopyColor(
         runes.color,
         migrated.skin.runesColor,
-        FirstNumber(runes.outAlpha, runes.alpha)
+        PositiveAlpha(alpha, migrated.skin.runesColor[4])
       )
     end
 
@@ -363,6 +388,7 @@ ns.db = RothMinimapDB
 
 ns.util = {
   SafeNumber = SafeNumber,
+  SafeString = SafeString,
   SafeTable = SafeTable,
   CanUseObject = CanUseObject,
   SafeCall = SafeCall,
@@ -470,10 +496,39 @@ local function ApplyBlizzardArt()
   return okCompass and okTop
 end
 
+local maskMode
+local maskNeedsValidation = true
+
+local function InvalidateMask()
+  maskNeedsValidation = true
+end
+
+local function DesiredMaskMode()
+  if not (ns.db.enabled and ns.db.squareMask) then return nil end
+  if ns.UsesNativePresentation() then return "native" end
+  return "square"
+end
+
 local function ApplyMask()
+  local desiredMode = DesiredMaskMode()
+
+  if not maskNeedsValidation and desiredMode == maskMode then return true end
+
+  -- A disabled/unselected mask feature that did not previously write the square
+  -- mask is a no-op. Do not overwrite another addon's mask with our default.
+  if desiredMode == nil and maskMode ~= "square" then
+    maskMode = nil
+    maskNeedsValidation = false
+    return true
+  end
+
   if not CanUseObject(_G.Minimap) then return false end
-  local useSquare = ns.db.enabled and ns.db.squareMask and not ns.UsesNativePresentation()
-  return SafeCall(Minimap, "SetMaskTexture", useSquare and SQUARE_MASK or DEFAULT_MASK)
+  local texture = desiredMode == "square" and SQUARE_MASK or DEFAULT_MASK
+  if not SafeCall(Minimap, "SetMaskTexture", texture) then return false end
+
+  maskMode = desiredMode
+  maskNeedsValidation = false
+  return true
 end
 
 local function ApplyModules()
@@ -506,8 +561,7 @@ end
 local function RefreshOwnedGeometry()
   if ns.UsesNativePresentation() or not (ns.db.enabled and ns.db.skin and ns.db.skin.enabled) then
     pendingGeometryRefresh = false
-    CallModule("skin", "ApplySafeState")
-    return true
+    return CallModule("skin", "ApplySafeState")
   end
   if IsCombatLocked() then
     pendingGeometryRefresh = true
@@ -551,8 +605,21 @@ end
 
 function ns.QueueRefresh(fullApply)
   if fullApply then refreshNeedsFullApply = true end
-  if refreshTimer then return end
 
+  if IsCombatLocked() then
+    CancelRefreshTimer()
+    refreshNeedsFullApply = false
+    if fullApply then
+      pendingFullApply = true
+      pendingGeometryRefresh = false
+      ApplyOwnedSafeState()
+    elseif not pendingFullApply then
+      pendingGeometryRefresh = true
+    end
+    return
+  end
+
+  if refreshTimer then return end
   if C_Timer and type(C_Timer.NewTimer) == "function" then
     refreshTimer = C_Timer.NewTimer(0, RunQueuedRefresh)
   else
@@ -599,7 +666,10 @@ coreEvents:RegisterEvent("UI_SCALE_CHANGED")
 coreEvents:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
     RegisterEditModeCallbacks()
-  elseif event == "PLAYER_ENTERING_WORLD" or event == "UI_SCALE_CHANGED" then
+  elseif event == "PLAYER_ENTERING_WORLD" then
+    InvalidateMask()
+    ns.QueueRefresh(true)
+  elseif event == "UI_SCALE_CHANGED" then
     ns.QueueRefresh(true)
   elseif event == "PLAYER_REGEN_ENABLED" then
     if pendingFullApply then

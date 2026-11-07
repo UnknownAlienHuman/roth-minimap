@@ -77,26 +77,35 @@ def validate_atlas(pixels: bytes, width: int, height: int) -> None:
             for y in range(row * tile_height, (row + 1) * tile_height):
                 start = (y * width + column * tile_width) * 4
                 tile.extend(pixels[start : start + tile_width * 4])
-            assert any(tile), f"fire atlas: frame {row * 4 + column} is empty"
+
+            frame_index = row * 4 + column
+            frame_alpha = tile[3::4]
+            assert max(frame_alpha) > 0, f"fire atlas: frame {frame_index} has no visible alpha"
             hashes.add(hashlib.sha256(tile).hexdigest())
 
     assert len(hashes) > 1, "fire atlas: all 16 frames are byte-identical"
 
 
 def main() -> None:
+    actual = {
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "media").glob("*.tga")
+    }
+    assert actual == set(EXPECTED), (
+        f"media manifest mismatch: missing={sorted(set(EXPECTED) - actual)} "
+        f"unexpected={sorted(actual - set(EXPECTED))}"
+    )
+
     loaded: dict[str, tuple[bytes, bytes, int, int]] = {}
     for relative, size in EXPECTED.items():
         loaded[relative] = read_tga(relative, size)
 
-    mask_pixels, mask_alpha, mask_width, mask_height = loaded["media/mask_square.tga"]
-    del mask_pixels
+    _, mask_alpha, mask_width, mask_height = loaded["media/mask_square.tga"]
     validate_mask(mask_alpha, mask_width, mask_height)
 
-    for relative in (
-        "media/RM_DIABLO_BORDER_512.tga",
-        "media/RM_VIGNETTE_SQUARE_512.tga",
-    ):
-        validate_alpha_shape(relative, loaded[relative][1])
+    for relative, (_, alpha, _, _) in loaded.items():
+        if relative != "media/mask_square.tga":
+            validate_alpha_shape(relative, alpha)
 
     atlas_pixels, _, atlas_width, atlas_height = loaded[
         "media/RM_DIABLO_FIRE_ATLAS_512_HOLE_NORMAL.tga"
@@ -107,7 +116,7 @@ def main() -> None:
         visible = sum(value > 0 for value in alpha)
         print(f"{relative}: visible_alpha={visible}/{len(alpha)}")
 
-    print("PASS: TGA dimensions, alpha channels, mask shape and fire atlas structure")
+    print("PASS: TGA manifest, dimensions, alpha channels, mask shape and fire atlas structure")
 
 
 if __name__ == "__main__":

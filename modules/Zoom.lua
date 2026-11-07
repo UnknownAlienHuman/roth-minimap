@@ -9,6 +9,7 @@ local U = ns.util
 local hooked = false
 local enabled = false
 local resetTimer
+local scheduledDelay
 
 local function IsCombatLocked()
   return type(InCombatLockdown) == "function" and InCombatLockdown()
@@ -22,6 +23,7 @@ end
 local function CancelReset()
   if resetTimer and type(resetTimer.Cancel) == "function" then resetTimer:Cancel() end
   resetTimer = nil
+  scheduledDelay = nil
 end
 
 local function ResetZoom()
@@ -42,8 +44,10 @@ local function ScheduleReset()
   if not (IsEnabledNow() and db and C_Timer and type(C_Timer.NewTimer) == "function") then return end
 
   local delay = U.clamp(U.SafeNumber(db.delay) or 3, 1, 10)
+  scheduledDelay = delay
   resetTimer = C_Timer.NewTimer(delay, function()
     resetTimer = nil
+    scheduledDelay = nil
     ResetZoom()
   end)
 end
@@ -78,7 +82,11 @@ function M:Apply()
     CancelReset()
     return true
   end
-  return AttachHooks()
+  if not AttachHooks() then return false end
+
+  local delay = U.clamp(U.SafeNumber(ns.db.zoom.delay) or 3, 1, 10)
+  if resetTimer and scheduledDelay ~= delay then ScheduleReset() end
+  return true
 end
 
 function M:ApplySafeState()

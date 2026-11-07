@@ -146,7 +146,8 @@ function ns.RefreshSettings()
   if firstError ~= nil then
     local handler = type(geterrorhandler) == "function" and geterrorhandler() or nil
     if type(handler) == "function" then
-      pcall(handler, "Roth Minimap Settings.NotifyUpdate: " .. tostring(firstError))
+      local detail = ns.util and ns.util.SafeString and ns.util.SafeString(firstError) or "<unavailable>"
+      pcall(handler, "Roth Minimap Settings.NotifyUpdate: " .. detail)
     end
   end
 end

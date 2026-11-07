@@ -8,8 +8,8 @@ Roth Minimap adds a square mask, restrained Diablo-style art, an opaque ping not
 
 - Retail / Midnight 12.1.5
 - Interface `120105`
-- Addon version `0.4.5`
-- SavedVariables schema `7`
+- Addon version `0.4.6`
+- SavedVariables schema `8`
 - Source-reviewed Blizzard live build `12.1.5.70783`
 - Source pin `Gethe/wow-ui-source@297d7aaaa736f346b3e036f38ee088eaf7f8c07f`
 - External dependencies: none
@@ -17,7 +17,7 @@ Roth Minimap adds a square mask, restrained Diablo-style art, an opaque ping not
 
 ## Installation
 
-Place the addon folder under `World of Warcraft/_retail_/Interface/AddOns/`. The runtime derives media paths from the actual addon folder name, so a renamed folder does not break bundled textures.
+Place the addon folder under `World of Warcraft/_retail_/Interface/AddOns/`. Runtime media paths use the actual addon folder name, so a renamed GitHub archive folder still resolves bundled textures.
 
 ## Ownership
 
@@ -32,13 +32,19 @@ The addon does not scan frame trees, collect minimap buttons, reparent foreign c
 
 The original accessible alpha is retained until a safe restore succeeds. A temporarily inaccessible read does not discard the snapshot. `MinimapBackdrop` is deliberately untouched because it owns housing and expansion UI descendants.
 
+## Mask policy
+
+Roth Minimap writes the square mask only while that feature is selected. If the addon starts disabled or with `Square minimap mask` off, it leaves an existing third-party mask untouched.
+
+After Roth Minimap has applied its square mask, disabling the feature restores the selected-build native default. `PLAYER_ENTERING_WORLD` revalidates the active mask once. Exact restoration of an arbitrary foreign mask is not claimed because the selected public Minimap API exposes `SetMaskTexture`, but no exact `GetMaskTexture` contract.
+
 ## Native-presentation fallback
 
 Blizzard Hybrid Minimap uses a separate `MapCanvas` and its own circular mask. Indoor housing adds a native static overlay. Roth Minimap does not reshape either foreign surface.
 
-While either mode is active, the addon:
+When the Roth square-mask feature is selected and either native mode becomes active, the addon:
 
-- restores the known native minimap mask;
+- applies the known native minimap mask;
 - restores exact decorative alpha values previously hidden by Roth Minimap;
 - hides only addon-owned border, runes, fire, pulse, and vignette;
 - leaves the fixed ping notification and bounded zoom reset available.
@@ -55,7 +61,10 @@ The 4×4 fire-atlas ticker uses separate cadence limits:
 - combat default: 8 FPS, configurable from 1–20;
 - exists only while the skin and native minimap are effectively visible;
 - stops on hide, disable, native fallback, or fire disable;
-- is not recreated when the interval is unchanged.
+- is not recreated when the interval is unchanged;
+- reads combat lockdown at update time, so event-frame ordering cannot select the wrong cadence.
+
+Schema 8 repairs old migrated border/rune layers that were disabled with alpha `0`: the layer remains disabled, but enabling its checkbox now makes it visible again.
 
 ## Ping
 
@@ -71,7 +80,7 @@ Blizzard retains native ping-sound ownership.
 
 Blizzard performs the only wheel zoom step. Roth Minimap post-hooks the completed input and owns at most one cancellable timer that resets zoom to level `0`.
 
-It does not call `EnableMouseWheel`, duplicate the wheel step, hard-code the maximum level, or recursively retry.
+It does not call `EnableMouseWheel`, duplicate the wheel step, hard-code the maximum level, or recursively retry. A pending reset is preserved across unrelated settings applies and rescheduled only when its delay changes.
 
 ## Commands
 
@@ -94,9 +103,9 @@ texlua tests/test_runtime_stubs.lua
 python3 tests/test_media.py
 ```
 
-`tests/test_syntax.lua` compiles every Lua file separately. `tests/test_media.py` validates TGA dimensions, format, alpha channels, square-mask shape, and the 4×4 fire atlas. GitHub Actions runs the same four gates on `main` and pull requests.
+`tests/test_syntax.lua` discovers and compiles every Lua file recursively on Windows and POSIX hosts. `tests/test_media.py` enforces the exact TGA manifest, dimensions, format, alpha channels, square-mask shape, and visible alpha in every fire-atlas frame. GitHub Actions runs the same four gates on `main` and pull requests with a pinned checkout action and read-only permissions.
 
-Offline checks cover schema migration, dynamic media paths, adaptive fire cadence, Settings identity, callback-event ping registration, secret payload opacity, exact alpha restoration, native fallback, draw order, visibility, zoom, combat deferral, refresh coalescing, and reset.
+Offline checks cover schema migration, dynamic media paths, adaptive fire cadence, Settings identity, callback-event ping registration, secret payload opacity, ordinary-only core/Settings errors, exact alpha restoration, transition-owned mask writes, native fallback, draw order, native wheel behavior, combat deferral, timer-free combat queue collapse, refresh coalescing, zoom-delay rescheduling, and reset.
 
 Live testing is still required for actual client build capture, Edit Mode profiles, hybrid/housing rendering, atlas alignment, taint/forbidden errors, logout persistence, and profiler measurements.
 

@@ -224,11 +224,23 @@ Minimap.strata = "LOW"
 Minimap.level = 10
 Minimap.zoom = 0
 Minimap.zoomLevels = 6
-function Minimap:SetMaskTexture(asset) self.mask = asset end
+Minimap.mask = "ThirdPartyMask"
+Minimap.maskWrites = 0
+function Minimap:SetMaskTexture(asset)
+  self.mask = asset
+  self.maskWrites = self.maskWrites + 1
+end
 function Minimap:GetZoom() return self.zoom end
 function Minimap:GetZoomLevels() return self.zoomLevels end
 function Minimap:SetZoom(value) self.zoom = value end
 function Minimap:CreateTexture() return texture(self) end
+Minimap:SetScript("OnMouseWheel", function(self, delta)
+  if delta > 0 then
+    self.zoom = math.min(self.zoom + 1, self.zoomLevels - 1)
+  elseif delta < 0 then
+    self.zoom = math.max(self.zoom - 1, 0)
+  end
+end)
 
 local function alphaObject(alpha)
   local value = object()

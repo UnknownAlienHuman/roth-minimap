@@ -6,6 +6,7 @@ local errors = E.errors
 local settings = E.settings
 local native = E.native
 local addonName = "roth-minimap-main"
+local defaultMask = "Interface\\Minimap\\UI-Minimap-Background"
 
 local legacy = {
   version = 18,
@@ -27,7 +28,7 @@ RothMinimapDB = legacy
 local ns = {}
 assert(loadfile("RothMinimap.lua"))(addonName, ns)
 assert(ns.media == "Interface\\AddOns\\" .. addonName .. "\\media\\")
-assert(ns.db == legacy and ns.db.version == 7)
+assert(ns.db == legacy and ns.db.version == 8)
 assert(ns.db.squareMask == false and ns.db.skin.enabled == false)
 assert(ns.db.skin.borderColor[1] == 0.2 and ns.db.skin.borderColor[4] == 0.75)
 assert(ns.db.skin.runesColor[4] == 0.25)
@@ -48,6 +49,12 @@ end
 
 assert(settings.ROTH_MINIMAP_PING_WHERE and #settings.ROTH_MINIMAP_PING_WHERE.options == 2)
 
+-- If the mask feature starts disabled, a full apply must not overwrite another owner.
+local untouchedMask = Minimap.mask
+local untouchedWrites = Minimap.maskWrites
+assert(ns.ApplyAll())
+assert(Minimap.mask == untouchedMask and Minimap.maskWrites == untouchedWrites)
+
 ns.db.enabled = true
 ns.db.squareMask = true
 ns.db.skin.enabled = true
@@ -62,6 +69,8 @@ ns.db.zoom.autoReset = true
 assert(ns.ApplyAll())
 assert(Minimap.mask:find("mask_square.tga", 1, true))
 assert(Minimap.mask:find(addonName, 1, true))
+local squareWrites = Minimap.maskWrites
+assert(ns.ApplyAll() and Minimap.maskWrites == squareWrites)
 assert(MinimapCompassTexture.alpha == 0)
 assert(MinimapCluster.BorderTop.alpha == 0)
 assert(MinimapBackdrop.alpha == 0.7)
@@ -72,10 +81,12 @@ assert(#tickers > 0 and not tickers[#tickers].cancelled)
 
 local idleTicker = tickers[#tickers]
 assert(idleTicker.interval == 0.5)
+E.setCombat(true)
 event("PLAYER_REGEN_DISABLED")
 local combatTicker = tickers[#tickers]
 assert(idleTicker.cancelled and combatTicker ~= idleTicker)
 assert(math.abs(combatTicker.interval - (1 / 9)) < 0.000001)
+E.setCombat(false)
 event("PLAYER_REGEN_ENABLED")
 local resumedIdleTicker = tickers[#tickers]
 assert(combatTicker.cancelled and resumedIdleTicker ~= combatTicker and resumedIdleTicker.interval == 0.5)
@@ -89,6 +100,15 @@ local secret = setmetatable({ __bad = true }, {
 })
 event("MINIMAP_PING", secret, secret, secret)
 assert(ns.ping.toast and ns.ping.toast:IsShown())
+
+-- Settings refresh errors are also ordinary-only; never stringify an inaccessible error.
+local enabledSetting = settings.ROTH_MINIMAP_ENABLED
+local originalEnabledCallback = enabledSetting.callback
+enabledSetting.callback = function() error(secret) end
+ns.RefreshSettings()
+assert(#errors == 1 and errors[1]:find("<unavailable>", 1, true))
+enabledSetting.callback = originalEnabledCallback
+errors[1] = nil
 
 ns.db.ping.enabled = false
 assert(ns.ApplyAll())
@@ -121,7 +141,9 @@ ns.db.hideBlizzardArt = true
 local preHybridTicker = tickers[#tickers]
 E.setHybrid(true)
 assert(ns.ApplyAll())
-assert(Minimap.mask == "Interface\\Minimap\\UI-Minimap-Background")
+assert(Minimap.mask == defaultMask)
+local nativeWrites = Minimap.maskWrites
+assert(ns.ApplyAll() and Minimap.maskWrites == nativeWrites)
 assert(MinimapCompassTexture.alpha == 0.35)
 assert(MinimapCluster.BorderTop.alpha == 0.6)
 assert(not ns.skin.frame:IsShown())
@@ -131,7 +153,8 @@ assert(ns.GetStatus().nativePresentation == "hybrid")
 E.setHybrid(false)
 E.setHousing(true)
 assert(ns.ApplyAll())
-assert(Minimap.mask == "Interface\\Minimap\\UI-Minimap-Background")
+assert(Minimap.mask == defaultMask)
+assert(Minimap.maskWrites == nativeWrites)
 assert(not ns.skin.frame:IsShown())
 assert(ns.GetStatus().nativePresentation == "housing")
 
@@ -143,14 +166,45 @@ assert(MinimapCluster.BorderTop.alpha == 0)
 assert(ns.skin.frame:IsShown())
 assert(ns.GetStatus().nativePresentation == nil)
 
-Minimap.zoom = 1
+-- Disabling an applied square mask restores the selected native default once.
+ns.db.squareMask = false
+assert(ns.ApplyAll())
+assert(Minimap.mask == defaultMask)
+local restoredWrites = Minimap.maskWrites
+assert(ns.ApplyAll() and Minimap.maskWrites == restoredWrites)
+ns.db.squareMask = true
+assert(ns.ApplyAll() and Minimap.mask:find("mask_square.tga", 1, true))
+
+-- World entry invalidates the native surface and causes exactly one mask revalidation.
+local worldWrites = Minimap.maskWrites
+event("PLAYER_ENTERING_WORLD")
+local worldRefresh = timers[#timers]
+assert(worldRefresh and not worldRefresh.cancelled)
+worldRefresh.callback()
+assert(Minimap.maskWrites == worldWrites + 1)
+
+-- The stub performs Blizzard's native wheel step before addon hooks.
+Minimap.zoom = 0
+local zoomTimerCount = #timers
 Minimap:RunScript("OnMouseWheel", 1)
-assert(Minimap.zoom == 1)
+assert(Minimap.zoom == 1 and #timers == zoomTimerCount + 1)
+local firstZoomTimer = timers[#timers]
+Minimap:RunScript("OnMouseWheel", 1)
+assert(Minimap.zoom == 2 and firstZoomTimer.cancelled)
 local zoomTimer = timers[#timers]
 assert(zoomTimer.delay == 4 and not zoomTimer.cancelled)
 assert(ns.ApplyAll() and not zoomTimer.cancelled)
-zoomTimer.callback()
+
+-- Changing only the reset delay reschedules pending work; unrelated applies do not.
+ns.db.zoom.delay = 7
+assert(ns.ApplyAll())
+local delayedZoomTimer = timers[#timers]
+assert(zoomTimer.cancelled and delayedZoomTimer ~= zoomTimer)
+assert(delayedZoomTimer.delay == 7 and not delayedZoomTimer.cancelled)
+assert(ns.ApplyAll() and not delayedZoomTimer.cancelled)
+delayedZoomTimer.callback()
 assert(Minimap.zoom == 0)
+ns.db.zoom.delay = 4
 
 ns.skin:Pulse()
 ns.skin.pulseGroup:Stop()
@@ -170,6 +224,14 @@ assert(not supersededRefresh.cancelled)
 E.setCombat(true)
 assert(ns.ApplyAll() == false)
 assert(supersededRefresh.cancelled)
+assert(ns.GetStatus().pendingApply)
+
+-- Lifecycle bursts received in combat collapse directly into pending state without timers.
+local combatTimerCount = #timers
+ns.QueueRefresh(false)
+ns.QueueRefresh(true)
+ns.QueueRefresh(false)
+assert(#timers == combatTimerCount)
 assert(ns.GetStatus().pendingApply)
 E.setCombat(false)
 event("PLAYER_REGEN_ENABLED")
@@ -216,7 +278,7 @@ assert(ns.db == rootRef)
 assert(ns.db.skin == skinRef)
 assert(ns.db.ping == pingRef)
 assert(ns.db.zoom == zoomRef)
-assert(ns.db.version == 7)
+assert(ns.db.version == 8)
 assert(ns.db.skin.borderColor[1] == 0.25)
 assert(ns.db.skin.vignetteAlpha == 0.22)
 assert(ns.db.skin.fireIdleFPS == 2 and ns.db.skin.fireCombatFPS == 8)
@@ -235,7 +297,7 @@ RothMinimapDB = {
 }
 local ns2 = {}
 assert(loadfile("RothMinimap.lua"))("RothMinimap", ns2)
-assert(ns2.db.version == 7)
+assert(ns2.db.version == 8)
 assert(ns2.db.skin.borderColor[1] == 1)
 assert(ns2.db.skin.vignetteAlpha == 0.40)
 assert(ns2.db.skin.fireIdleFPS == 2 and ns2.db.skin.fireCombatFPS == 12 and ns2.db.skin.fireFPS == nil)
@@ -249,7 +311,7 @@ RothMinimapDB = {
 }
 local ns3 = {}
 assert(loadfile("RothMinimap.lua"))("RothMinimap", ns3)
-assert(ns3.db.version == 7 and ns3.db.enabled == true)
+assert(ns3.db.version == 8 and ns3.db.enabled == true)
 assert(ns3.db.skin.fireIdleFPS == 2 and ns3.db.skin.fireCombatFPS == 20 and ns3.db.skin.fireFPS == nil and ns3.db.skin.outset == 0)
 assert(ns3.db.ping.where == "toast" and ns3.db.ping.duration == 1)
 assert(ns3.db.zoom.delay == 10)
@@ -257,7 +319,7 @@ assert(ns3.db.zoom.delay == 10)
 RothMinimapDB = "corrupt"
 local ns4 = {}
 assert(loadfile("RothMinimap.lua"))("RothMinimap", ns4)
-assert(type(ns4.db) == "table" and ns4.db.version == 7)
+assert(type(ns4.db) == "table" and ns4.db.version == 8)
 assert(ns4.db.skin.borderColor[1] == 0.25)
 assert(ns4.db.skin.vignetteAlpha == 0.22)
 assert(ns4.db.skin.fireIdleFPS == 2 and ns4.db.skin.fireCombatFPS == 8)
@@ -265,13 +327,42 @@ assert(ns4.db.skin.fireIdleFPS == 2 and ns4.db.skin.fireCombatFPS == 8)
 RothMinimapDB = {
   version = 7,
   enabled = true,
-  skin = { fireIdleFPS = 5, fireCombatFPS = 13 },
+  skin = {
+    border = false,
+    runes = false,
+    borderColor = { 0.2, 0.2, 0.2, 0 },
+    runesColor = { 1, 0.3, 0.1, 0 },
+    fireIdleFPS = 5,
+    fireCombatFPS = 13,
+  },
   ping = {},
   zoom = {},
 }
 local ns5 = {}
 assert(loadfile("RothMinimap.lua"))("RothMinimap", ns5)
+assert(ns5.db.version == 8)
 assert(ns5.db.skin.fireIdleFPS == 5 and ns5.db.skin.fireCombatFPS == 13)
+assert(ns5.db.skin.border == false and ns5.db.skin.borderColor[4] == 1)
+assert(ns5.db.skin.runes == false and ns5.db.skin.runesColor[4] == 0.20)
+
+RothMinimapDB = {
+  version = 18,
+  enabled = true,
+  square = true,
+  skinEnabled = true,
+  visual = {
+    border = { alpha = 0, color = { 0.4, 0.4, 0.4 } },
+    runes = { enabled = true, outAlpha = 0, color = { 1, 0.2, 0.1 } },
+  },
+  fire = {},
+  ping = {},
+  zoom = {},
+}
+local ns6 = {}
+assert(loadfile("RothMinimap.lua"))("RothMinimap", ns6)
+assert(ns6.db.version == 8)
+assert(ns6.db.skin.border == false and ns6.db.skin.borderColor[4] == 1)
+assert(ns6.db.skin.runes == false and ns6.db.skin.runesColor[4] == 0.20)
 assert(#errors == 0)
 
-print("PASS: migration, dynamic media, adaptive cadence, CallbackEvent ping, alpha restore, fallback, combat and reset")
+print("PASS: schema-8 migration, mask ownership, native wheel, adaptive cadence, callback ping, fallback, combat and reset")

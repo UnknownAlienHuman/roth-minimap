@@ -50,6 +50,12 @@ local function IsEffectivelyVisible()
     and U.SafeGet(Minimap, "IsVisible") == true
 end
 
+local function SyncCombatState()
+  if type(InCombatLockdown) ~= "function" then return end
+  local current = InCombatLockdown()
+  if type(current) == "boolean" then inCombat = current end
+end
+
 local function StopFireTicker()
   if fireTicker and type(fireTicker.Cancel) == "function" then fireTicker:Cancel() end
   fireTicker = nil
@@ -111,6 +117,8 @@ end
 
 local function UpdateFire()
   if not fireTexture then return end
+  SyncCombatState()
+
   local db = ns.db and ns.db.skin
   if not FireEnabled() then
     fireTexture:Hide()
@@ -285,7 +293,7 @@ end
 local combatEvents = CreateFrame("Frame")
 combatEvents:RegisterEvent("PLAYER_REGEN_DISABLED")
 combatEvents:RegisterEvent("PLAYER_REGEN_ENABLED")
-combatEvents:SetScript("OnEvent", function(_, event)
-  inCombat = event == "PLAYER_REGEN_DISABLED"
+combatEvents:SetScript("OnEvent", function()
+  SyncCombatState()
   UpdateFire()
 end)
