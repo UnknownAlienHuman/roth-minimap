@@ -15,9 +15,9 @@
 - Made authored frame expansion and shadow padding proportional to the accessible Edit Mode minimap size, using the selected-build 198-pixel minimap as the reference.
 - Reduced shadow, charred material, frame-highlight, and event-pulse strength so the map remains visually dominant.
 - Derived ember, halo, pulse, and char tones from the active accent/frame palette instead of using one hard-coded pale-orange tint.
-- Confirmed that the thin fire atlas contains nonzero center alpha and added one addon-owned char-shaped mask to the halo, fire, and pulse layers. Decorative effects no longer tint the map center.
-- Added runtime coverage for mask attachment, idle/combat motion transitions, and proportional geometry at 99, 198, and 297 pixels.
-- Extended media diagnostics with alpha center and visible-bounds reports for each shipped TGA.
+- Added per-frame atlas diagnostics. They proved all 16 displayed frame centers are transparent; a proposed runtime effect mask was removed rather than shipping unnecessary clipping logic.
+- Added runtime coverage for idle/combat motion transitions and proportional geometry at 99, 198, and 297 pixels.
+- Extended media diagnostics with whole-asset alpha bounds plus per-frame visible/strong/mean/center metrics.
 
 ## 0.4.6 — ownership and migration closure
 

@@ -53,7 +53,6 @@ local function object(parent)
     events = {},
     eventCallbacks = {},
     textures = {},
-    maskTextures = {},
     fontStrings = {},
     points = {},
     shown = true,
@@ -128,28 +127,17 @@ end
 
 local function texture(parent)
   local value = object(parent)
-  value.masks = {}
   function value:SetTexture(asset) self.texture = asset end
   function value:SetBlendMode(mode) self.blendMode = mode end
   function value:SetVertexColor(...) self.vertexColor = { ... } end
   function value:SetTexCoord(...) self.texCoord = { ... } end
-  function value:AddMaskTexture(mask) self.masks[#self.masks + 1] = mask end
   parent.textures[#parent.textures + 1] = value
-  return value
-end
-
-local function maskTexture(parent)
-  local value = object(parent)
-  function value:SetTexture(asset) self.texture = asset end
-  function value:SetTexCoord(...) self.texCoord = { ... } end
-  parent.maskTextures[#parent.maskTextures + 1] = value
   return value
 end
 
 CreateFrame = function(_, _, parent)
   local frame = object(parent)
   function frame:CreateTexture() return texture(self) end
-  function frame:CreateMaskTexture() return maskTexture(self) end
   function frame:CreateFontString()
     local fontString = object(self)
     function fontString:SetText(text) self.text = text end

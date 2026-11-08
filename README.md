@@ -19,9 +19,9 @@ Obsidian Ember is one composition, not a pile of equally strong effects:
 
 ```text
 soft outer shadow
-  -> masked ember halo
+  -> low ember halo
   -> charred material rim
-  -> masked thin embers
+  -> thin embers
   -> dark bronze frame + restrained highlight
   -> optional runes
   -> subtle inner vignette
@@ -31,14 +31,14 @@ The default preset uses thin flames, 5% idle ember alpha, 26% combat alpha, a 28
 
 ### Motion hierarchy
 
-Motion now communicates state instead of running continuously at a choppy low frame rate:
+Motion communicates state instead of running continuously at a choppy low frame rate:
 
 - **out of combat:** one selected atlas frame uses a slow repeating alpha breath in an `AnimationGroup`; no Lua atlas ticker runs;
 - **in combat:** the breath stops and one bounded 4×4 atlas ticker starts at the selected combat FPS;
-- **ping:** one short, masked pulse; no gameplay payload is read;
+- **ping:** one short addon-owned pulse; no gameplay payload is read;
 - **hidden, disabled, or native fallback:** all owned motion stops.
 
-The ember atlas contains nonzero center alpha, so fire, halo, and pulse are clipped by one addon-owned mask derived from the charred-rim asset. The map center is not tinted by the decorative effects.
+Binary atlas validation checks every actual 128×128 frame separately. All 16 sampled frame centers are transparent, so an additional runtime mask would add complexity and risk clipping the authored flame silhouette without solving a real defect.
 
 ### Responsive geometry
 
@@ -65,8 +65,6 @@ Use Blizzard **Edit Mode** to position and size the minimap. Roth Minimap does n
 
 `MinimapBackdrop` is untouched because it owns housing and expansion UI descendants. Original accessible alpha values are retained until restoration resolves safely.
 
-All masks used by the visual frame are addon-created and apply only to addon-created textures. No native or third-party region is adopted or masked.
-
 ## Mask policy
 
 Roth Minimap writes the native square map mask only while that feature is selected. Starting disabled or with `Square minimap mask` off leaves an existing third-party mask untouched.
@@ -89,6 +87,7 @@ While Blizzard Hybrid Minimap or indoor housing presentation is active, the addo
 - one combat-only ticker, configurable from 1–20 FPS;
 - one C-level idle alpha animation, controlled by `Idle ember motion speed`;
 - no ticker or breath when ember alpha is zero, the frame is hidden, or native fallback is active;
+- no extra runtime effect mask;
 - no `OnUpdate`, frame-tree scanning, retry loops, or recurring region creation;
 - geometry is recalculated only on explicit settings or confirmed lifecycle signals.
 
@@ -127,7 +126,7 @@ texlua tests/test_runtime_stubs.lua
 python3 tests/test_media.py
 ```
 
-Offline coverage includes schema-9 preset migration, Settings identity, texture order, owned mask attachment, idle/combat motion transitions, proportional geometry at multiple Edit Mode sizes, secret ping opacity, native mask ownership, native fallback, combat deferral, native wheel behavior, and exact TGA geometry reports.
+Offline coverage includes schema-9 preset migration, Settings identity, texture order, idle/combat motion transitions, proportional geometry at multiple Edit Mode sizes, secret ping opacity, native mask ownership, native fallback, combat deferral, native wheel behavior, and per-frame TGA alpha metrics.
 
 Live testing is still required for actual client rendering, Edit Mode profiles, Hybrid Minimap/housing presentation, atlas alignment, taint capture, logout persistence, and `C_AddOnProfiler` measurements.
 

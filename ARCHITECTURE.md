@@ -3,7 +3,7 @@
 ## Owners
 
 - `RothMinimap.lua`: schema 9, visual presets, migration, access gates, native-mode detection, mask/art ownership, lifecycle coalescing, reset, and commands.
-- `modules/Skin.lua`: addon-owned responsive shadow, masked ember halo, charred rim, fire, frame, highlight, runes, pulse, and vignette.
+- `modules/Skin.lua`: addon-owned responsive shadow, ember halo, charred rim, fire, frame, highlight, runes, pulse, and vignette.
 - `modules/Ping.lua`: secret-payload-safe callback registration and compact fixed-text toast/chat presentation.
 - `modules/Zoom.lua`: native wheel observation and one cancellable reset timer.
 - `Options.lua`: Blizzard Settings registration, preset application, motion controls, and `Custom` transition after detailed edits.
@@ -12,39 +12,32 @@
 
 ```text
 BACKGROUND
-  soft black shadow (unmasked)
-  masked ember halo
+  soft black shadow
+  low ember halo
 
 ARTWORK
   charred material rim
-  masked thin ember atlas
+  thin ember atlas
   dark frame
   restrained additive frame highlight
   optional runes
-  masked event pulse
+  event pulse
 
 MINIMAP OVERLAY
   inner vignette
 ```
 
-All regions and the ember mask are addon-created, noninteractive objects. The frame follows accessible Minimap strata and level; native child widgets remain above it. No native or third-party texture receives an addon mask.
+All regions are addon-created and noninteractive. The frame follows accessible Minimap strata and level; native child widgets remain above it.
 
-## Masked effect boundary
+## Atlas evidence boundary
 
-The thin fire atlas has nonzero alpha at its texture center. Rendering it unmasked can tint map content even at low global alpha. The skin therefore creates one owned `MaskTexture` from the charred-rim asset and attaches it only to:
-
-- ambient glow;
-- fire atlas;
-- event pulse.
-
-The outer black shadow is deliberately unmasked. The material frame and runes already carry authored alpha and do not need a runtime mask.
+The 512×512 fire file is a 4×4 atlas. Whole-file coordinates are not runtime frame coordinates. Validation therefore slices all 16 actual 128×128 frames and checks each one independently.
 
 ```text
-owned CHAR alpha
-  -> owned MaskTexture
-  -> owned halo / fire / pulse only
-  -> map content and foreign regions untouched
+whole atlas center alpha != displayed-frame center alpha
 ```
+
+All displayed-frame centers are transparent in the selected thin atlas. No extra runtime effect mask is created: it would add an object and potentially clip the authored flame silhouette without addressing an observed defect.
 
 ## Motion state machine
 
@@ -76,7 +69,7 @@ scaledOutset  = round(authoredOutset * geometryScale)
 shadowPadding = round(8 * geometryScale)
 ```
 
-Only addon-owned frame and shadow geometry change. Blizzard Edit Mode remains the sole authority for the native Minimap size and position. Inaccessible or invalid geometry still skips the update rather than inventing a size.
+Only addon-owned frame and shadow geometry change. Blizzard Edit Mode remains the sole authority for the native Minimap size and position. Inaccessible or invalid geometry skips the update rather than inventing a size.
 
 ## Preset model
 
@@ -149,11 +142,12 @@ No code scans frame trees, reparents foreign objects, replaces native methods, m
 - one C-level repeating idle AnimationGroup;
 - one zoom timer;
 - one coalesced lifecycle timer;
-- no `OnUpdate`, polling, recursive timers, or repeated frame/texture/mask creation;
+- no extra effect mask;
+- no `OnUpdate`, polling, recursive timers, or repeated frame/texture creation;
 - proportional geometry is recalculated only on settings changes and confirmed lifecycle signals.
 
 ## Verification boundary
 
-`tests/test_syntax.lua` discovers every Lua file. Static tests enforce ownership, masking, responsive geometry, and motion contracts. Runtime stubs exercise presets, schema migration, owned mask attachment, idle/combat transitions, three Edit Mode sizes, ping, native mask ownership, zoom, and reset behavior. `tests/test_media.py` enforces the exact TGA manifest and reports alpha center/bounds for design review.
+`tests/test_syntax.lua` discovers every Lua file. Static tests enforce ownership, responsive geometry, and motion contracts. Runtime stubs exercise presets, schema migration, idle/combat transitions, three Edit Mode sizes, ping, native mask ownership, zoom, and reset behavior. `tests/test_media.py` enforces the exact TGA manifest and reports per-frame alpha metrics rather than reasoning from whole-atlas coordinates.
 
 Live rendering, taint, native ordering, SavedVariables serialization, and profiler measurements remain `NOT-RUN` until captured on a named client build.

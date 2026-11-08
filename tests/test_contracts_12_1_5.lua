@@ -102,10 +102,6 @@ assertPresent(skin, "local scaledOutset = math.floor(baseOutset * geometryScale 
 assertPresent(skin, "shadow:ClearAllPoints()", "owned shadow geometry refresh")
 assertPresent(skin, "SetEmberColor", "palette-derived ember tint")
 assertPresent(skin, "math.min(0.46, base + response)", "bounded charred material response")
-assertPresent(skin, "fireMask = frame:CreateMaskTexture()", "addon-owned ember mask")
-assertPresent(skin, "fireTexture:AddMaskTexture(fireMask)", "atlas center exclusion")
-assertPresent(skin, "ambientGlow:AddMaskTexture(fireMask)", "halo center exclusion")
-assertPresent(skin, "pulseTexture:AddMaskTexture(fireMask)", "pulse center exclusion")
 assertPresent(skin, "GetFrameStrata", "native draw-order synchronization")
 assertPresent(skin, "GetFrameLevel", "native frame-level synchronization")
 assertPresent(skin, "pulseGroup:SetScript(\"OnStop\", ResetPulse)", "pulse stop cleanup")
@@ -155,7 +151,6 @@ assertPresent(mediaTest, "RM_DIABLO_FIRE_ATLAS_512_HOLE_THIN.tga", "thin atlas v
 assertAbsent(mediaTest, "RM_DIABLO_FIRE_ATLAS_512_HOLE_NORMAL.tga", "retired atlas absent from manifest")
 assertPresent(mediaTest, "unexpected TGA manifest", "exact media manifest")
 assertPresent(mediaTest, "frame {frame_index} has no visible alpha", "per-frame fire validation")
-assertPresent(mediaTest, "center_alpha", "visual center-coverage report")
 
 for name, document in pairs({
   README = readme,
@@ -172,4 +167,4 @@ assertPresent(readme, "Inferno", "documented visual presets")
 assertPresent(readme, "Runebound", "documented visual presets")
 assertPresent(readme, "Clean", "documented visual presets")
 
-print("PASS: Retail 12.1.5 masked embers, smooth idle motion, proportional geometry and ownership contracts")
+print("PASS: Retail 12.1.5 smooth idle motion, proportional geometry, layered art and ownership contracts")
