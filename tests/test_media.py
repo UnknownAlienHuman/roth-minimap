@@ -135,7 +135,7 @@ def main() -> None:
             validate_alpha_shape(relative, alpha)
 
     char_alpha = loaded["media/RM_DIABLO_CHAR_512.tga"][1]
-    assert alpha_at(char_alpha, 512, 256, 256) == 0, "char mask must exclude the map center"
+    assert alpha_at(char_alpha, 512, 256, 256) == 0, "char texture must keep the map center transparent"
 
     atlas_pixels, _, atlas_width, atlas_height = loaded[
         "media/RM_DIABLO_FIRE_ATLAS_512_HOLE_THIN.tga"
