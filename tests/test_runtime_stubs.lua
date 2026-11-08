@@ -88,6 +88,14 @@ assert(layers[3]:IsShown() and layers[5]:IsShown() and layers[7]:IsShown())
 assert(layers[1].alpha < 0.40 and layers[3].alpha < 0.40)
 assert(layers[4].vertexColor[1] > 0.9 and layers[4].vertexColor[2] > 0.6)
 
+assert(#ns.skin.frame.maskTextures == 1)
+assert(ns.skin.fireMask == ns.skin.frame.maskTextures[1])
+assert(ns.skin.fireMask.texture:find("RM_DIABLO_CHAR_512.tga", 1, true))
+assert(#layers[1].masks == 0)
+assert(layers[2].masks[1] == ns.skin.fireMask)
+assert(layers[4].masks[1] == ns.skin.fireMask)
+assert(layers[8].masks[1] == ns.skin.fireMask)
+
 -- Idle motion is a static atlas frame with a looping C-level alpha breath, not a Lua ticker.
 assert(#tickers == 0)
 assert(ns.skin.fireBreathGroup and ns.skin.fireBreathGroup.playing)
@@ -388,4 +396,4 @@ assert(ns6.ApplyAll())
 assert(Minimap.mask == "ThirdPartyMask" and Minimap.maskWrites == 0)
 
 assert(#errors == 0)
-print("PASS: smooth idle breath, combat atlas, proportional geometry, presets, ownership and lifecycle")
+print("PASS: masked embers, smooth idle breath, combat atlas, proportional geometry, presets and ownership")
