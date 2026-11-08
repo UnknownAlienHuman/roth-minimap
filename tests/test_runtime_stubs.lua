@@ -70,8 +70,8 @@ assert(MinimapBackdrop.alpha == 0.7)
 assert(ns.skin.frame:GetFrameStrata() == "LOW")
 assert(ns.skin.frame:GetFrameLevel() == 10)
 assert(ns.skin.frame:GetFrameLevel() < native:GetFrameLevel())
-assert(ns.skin.frame:GetWidth() == 198 + ns.db.skin.outset * 2)
-assert(#tickers > 0 and not tickers[#tickers].cancelled)
+assert(ns.skin.frame:GetWidth() == 254 and ns.skin.frame:GetHeight() == 254)
+assert(ns.skin.geometryScale == 1 and ns.skin.scaledOutset == 28 and ns.skin.shadowPadding == 8)
 
 local layers = ns.skin.frame.textures
 assert(#layers == 8)
@@ -85,18 +85,42 @@ assert(layers[7].texture:find("RM_DIABLO_RUNES_512.tga", 1, true))
 assert(layers[8].texture:find("RM_DIABLO_FIRE_GLOW_512.tga", 1, true))
 assert(layers[1].blendMode == "BLEND" and layers[2].blendMode == "ADD")
 assert(layers[3]:IsShown() and layers[5]:IsShown() and layers[7]:IsShown())
+assert(layers[1].alpha < 0.40 and layers[3].alpha < 0.40)
+assert(layers[4].vertexColor[1] > 0.9 and layers[4].vertexColor[2] > 0.6)
 
-local idleTicker = tickers[#tickers]
-assert(idleTicker.interval == 0.5)
+-- Idle motion is a static atlas frame with a looping C-level alpha breath, not a Lua ticker.
+assert(#tickers == 0)
+assert(ns.skin.fireBreathGroup and ns.skin.fireBreathGroup.playing)
+assert(ns.skin.fireBreathGroup.looping == "REPEAT")
+assert(#ns.skin.fireBreathGroup.animations == 2)
+local breathDuration = ns.skin.fireBreathGroup.animations[1].values.SetDuration
+assert(type(breathDuration) == "number" and breathDuration > 2 and breathDuration < 3)
+
 E.setCombat(true)
 event("PLAYER_REGEN_DISABLED")
-local combatTicker = tickers[#tickers]
-assert(idleTicker.cancelled and combatTicker ~= idleTicker)
-assert(math.abs(combatTicker.interval - (1 / 9)) < 0.000001)
+assert(not ns.skin.fireBreathGroup.playing)
+assert(#tickers == 1 and not tickers[1].cancelled)
+assert(math.abs(tickers[1].interval - (1 / 9)) < 0.000001)
+local combatTicker = tickers[1]
+
 E.setCombat(false)
 event("PLAYER_REGEN_ENABLED")
-local resumedIdleTicker = tickers[#tickers]
-assert(combatTicker.cancelled and resumedIdleTicker ~= combatTicker and resumedIdleTicker.interval == 0.5)
+assert(combatTicker.cancelled)
+assert(ns.skin.fireBreathGroup.playing)
+assert(#tickers == 1)
+
+-- The authored frame ratio remains stable across Blizzard Edit Mode sizes.
+Minimap:SetSize(99, 99)
+assert(ns.skin:UpdateGeometry())
+assert(ns.skin.geometryScale == 0.5 and ns.skin.scaledOutset == 14)
+assert(ns.skin.frame:GetWidth() == 127 and ns.skin.shadowPadding == 4)
+Minimap:SetSize(297, 297)
+assert(ns.skin:UpdateGeometry())
+assert(ns.skin.geometryScale == 1.5 and ns.skin.scaledOutset == 42)
+assert(ns.skin.frame:GetWidth() == 381 and ns.skin.shadowPadding == 12)
+Minimap:SetSize(198, 198)
+assert(ns.skin:UpdateGeometry())
+assert(ns.skin.frame:GetWidth() == 254 and ns.skin.scaledOutset == 28)
 
 assert(E.hasCallbackEvent("MINIMAP_PING"))
 assert(not E.hasRawEvent("MINIMAP_PING"))
@@ -140,14 +164,13 @@ assert(ns.ApplyAll())
 assert(MinimapCompassTexture.alpha == 0.35)
 ns.db.hideBlizzardArt = true
 
-local preHybridTicker = tickers[#tickers]
 E.setHybrid(true)
 assert(ns.ApplyAll())
 assert(Minimap.mask == "Interface\\Minimap\\UI-Minimap-Background")
 assert(MinimapCompassTexture.alpha == 0.35)
 assert(MinimapCluster.BorderTop.alpha == 0.6)
 assert(not ns.skin.frame:IsShown())
-assert(preHybridTicker.cancelled)
+assert(not ns.skin.fireBreathGroup.playing)
 assert(ns.GetStatus().nativePresentation == "hybrid")
 
 E.setHybrid(false)
@@ -163,6 +186,7 @@ assert(Minimap.mask:find("mask_square.tga", 1, true))
 assert(MinimapCompassTexture.alpha == 0)
 assert(MinimapCluster.BorderTop.alpha == 0)
 assert(ns.skin.frame:IsShown())
+assert(ns.skin.fireBreathGroup.playing)
 assert(ns.GetStatus().nativePresentation == nil)
 
 -- One wheel notch is one native step, followed by one bounded reset timer.
@@ -180,9 +204,10 @@ ns.skin.pulseGroup:Stop()
 assert(not ns.skin.pulseGroup.owner:IsShown())
 assert(ns.skin.pulseGroup.owner:GetAlpha() == 0)
 
-local ticker = tickers[#tickers]
 ns.skin.frame:Hide()
-assert(ticker.cancelled)
+assert(not ns.skin.fireBreathGroup.playing)
+ns.skin.frame:Show()
+assert(ns.skin.fireBreathGroup.playing)
 
 -- Direct full apply supersedes and cancels a queued lifecycle refresh, even in combat.
 local queuedTimerCount = #timers
@@ -203,6 +228,7 @@ ns.db.skin.fire = false
 E.setCombat(true)
 assert(ns.ApplyAll() == false)
 assert(not layers[4]:IsShown() and not layers[2]:IsShown())
+assert(not ns.skin.fireBreathGroup.playing)
 assert(ns.GetStatus().pendingApply)
 E.setCombat(false)
 event("PLAYER_REGEN_ENABLED")
@@ -231,12 +257,14 @@ assert(ns.db.skin.runes == true and ns.db.skin.fire == true)
 assert(ns.db.skin.outset == 30 and ns.db.skin.fireCombatAlpha == 0.18)
 assert(ns.skin.frame:GetWidth() == 258)
 assert(layers[7]:IsShown())
+assert(ns.skin.fireBreathGroup.playing)
 settings.ROTH_MINIMAP_FIRE_COMBAT:SetValue(0.33)
 assert(ns.db.skin.preset == "custom" and ns.db.skin.fireCombatAlpha == 0.33)
 settings.ROTH_MINIMAP_PRESET:SetValue("minimal")
 assert(ns.db.skin.preset == "minimal")
 assert(ns.db.skin.fire == false and ns.db.skin.runes == false and ns.db.skin.outset == 20)
 assert(not layers[4]:IsShown() and not layers[2]:IsShown())
+assert(not ns.skin.fireBreathGroup.playing)
 
 local rootRef = ns.db
 local skinRef = ns.db.skin
@@ -260,7 +288,7 @@ assert(ns.db.skin.fireIdleAlpha == 0.05 and ns.db.skin.fireCombatAlpha == 0.26)
 assert(ns.db.skin.fireIdleFPS == 2 and ns.db.skin.fireCombatFPS == 8)
 assert(ns.db.skin.outset == 28)
 
--- Schema 8 exact defaults are upgraded to the new coherent default preset.
+-- Schema 8 exact defaults are upgraded to the coherent default preset.
 RothMinimapDB = {
   version = 8,
   enabled = true,
@@ -360,4 +388,4 @@ assert(ns6.ApplyAll())
 assert(Minimap.mask == "ThirdPartyMask" and Minimap.maskWrites == 0)
 
 assert(#errors == 0)
-print("PASS: schema-9 presets, layered design, mask ownership, native wheel, callback ping, fallback, combat and reset")
+print("PASS: smooth idle breath, combat atlas, proportional geometry, presets, ownership and lifecycle")
