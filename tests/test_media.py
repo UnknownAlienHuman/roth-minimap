@@ -50,6 +50,18 @@ def alpha_at(alpha: bytes, width: int, x: int, y: int) -> int:
     return alpha[y * width + x]
 
 
+def alpha_bounds(alpha: bytes, width: int, height: int, threshold: int = 8) -> tuple[int, int, int, int]:
+    points = [
+        (index % width, index // width)
+        for index, value in enumerate(alpha)
+        if value > threshold
+    ]
+    assert points, "alpha bounds: no visible pixels"
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
 def validate_mask(alpha: bytes, width: int, height: int) -> None:
     corners = (
         alpha_at(alpha, width, 0, 0),
@@ -67,10 +79,11 @@ def validate_alpha_shape(relative: str, alpha: bytes) -> None:
     assert min(alpha) < max(alpha), f"{relative}: alpha channel is constant"
 
 
-def validate_atlas(pixels: bytes, width: int, height: int) -> None:
+def validate_atlas(pixels: bytes, width: int, height: int) -> list[dict[str, float | int]]:
     assert width % 4 == 0 and height % 4 == 0
     tile_width, tile_height = width // 4, height // 4
     hashes: set[str] = set()
+    metrics: list[dict[str, float | int]] = []
 
     for row in range(4):
         for column in range(4):
@@ -84,7 +97,20 @@ def validate_atlas(pixels: bytes, width: int, height: int) -> None:
             assert max(frame_alpha) > 0, f"fire atlas: frame {frame_index} has no visible alpha"
             hashes.add(hashlib.sha256(tile).hexdigest())
 
+            alpha_sum = sum(frame_alpha)
+            visible = sum(value > 0 for value in frame_alpha)
+            strong = sum(value >= 64 for value in frame_alpha)
+            center = frame_alpha[(tile_height // 2) * tile_width + tile_width // 2]
+            metrics.append({
+                "frame": frame_index,
+                "visible": visible,
+                "strong": strong,
+                "mean": alpha_sum / len(frame_alpha),
+                "center": center,
+            })
+
     assert len(hashes) > 1, "fire atlas: all 16 frames are byte-identical"
+    return metrics
 
 
 def main() -> None:
@@ -108,14 +134,28 @@ def main() -> None:
         if relative != "media/mask_square.tga":
             validate_alpha_shape(relative, alpha)
 
+    char_alpha = loaded["media/RM_DIABLO_CHAR_512.tga"][1]
+    assert alpha_at(char_alpha, 512, 256, 256) == 0, "char mask must exclude the map center"
+
     atlas_pixels, _, atlas_width, atlas_height = loaded[
         "media/RM_DIABLO_FIRE_ATLAS_512_HOLE_THIN.tga"
     ]
-    validate_atlas(atlas_pixels, atlas_width, atlas_height)
+    atlas_metrics = validate_atlas(atlas_pixels, atlas_width, atlas_height)
 
-    for relative, (_, alpha, _, _) in loaded.items():
+    for relative, (_, alpha, width, height) in loaded.items():
         visible = sum(value > 0 for value in alpha)
-        print(f"{relative}: visible_alpha={visible}/{len(alpha)}")
+        center = alpha_at(alpha, width, width // 2, height // 2)
+        bounds = alpha_bounds(alpha, width, height)
+        print(
+            f"{relative}: visible_alpha={visible}/{len(alpha)} "
+            f"center_alpha={center} bounds={bounds}"
+        )
+
+    for metric in atlas_metrics:
+        print(
+            "fire_frame={frame:02d} visible={visible} strong={strong} "
+            "mean_alpha={mean:.2f} center_alpha={center}".format(**metric)
+        )
 
     print("PASS: TGA manifest, dimensions, alpha channels, mask shape and thin fire atlas structure")
 

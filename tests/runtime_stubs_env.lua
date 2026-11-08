@@ -10,9 +10,10 @@ DEFAULT_CHAT_FRAME = { messages = {}, AddMessage = function(self, message) self.
 SlashCmdList = {}
 
 local function animationGroup(owner)
-  local group = { owner = owner, scripts = {}, playing = false }
-  function group:CreateAnimation()
-    local animation = { values = {} }
+  local group = { owner = owner, scripts = {}, playing = false, animations = {} }
+  function group:CreateAnimation(animationType)
+    local animation = { animationType = animationType, values = {} }
+    self.animations[#self.animations + 1] = animation
     return setmetatable(animation, {
       __index = function(tableValue, key)
         return function(_, value, secondValue)
@@ -25,6 +26,8 @@ local function animationGroup(owner)
       end,
     })
   end
+  function group:SetLooping(value) self.looping = value end
+  function group:IsPlaying() return self.playing end
   function group:SetScript(key, value) self.scripts[key] = value end
   function group:Play()
     self.playing = true
@@ -51,6 +54,7 @@ local function object(parent)
     eventCallbacks = {},
     textures = {},
     fontStrings = {},
+    points = {},
     shown = true,
     alpha = 1,
     alphaReadable = true,
@@ -78,7 +82,8 @@ local function object(parent)
     for _, callback in ipairs(self.hooks[script] or {}) do callback(self, ...) end
   end
   function value:EnableMouse(enabled) self.mouse = enabled end
-  function value:SetPoint(...) self.points = self.points or {}; self.points[#self.points + 1] = { ... } end
+  function value:SetPoint(...) self.points[#self.points + 1] = { ... } end
+  function value:ClearAllPoints() self.points = {} end
   function value:SetAllPoints(target) self.allPoints = target or true end
   function value:SetSize(width, height) self.width, self.height = width, height end
   function value:SetWidth(width) self.width = width end

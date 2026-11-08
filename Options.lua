@@ -148,16 +148,16 @@ local function RegisterSettings()
   Checkbox(category, ns.db.skin, "ROTH_MINIMAP_BORDER", "border", "Obsidian frame", true, nil, MarkCustomAndApply)
   Checkbox(category, ns.db.skin, "ROTH_MINIMAP_RUNES", "runes", "Runic overlay", false, nil, MarkCustomAndApply)
   Checkbox(category, ns.db.skin, "ROTH_MINIMAP_VIGNETTE", "vignette", "Inner vignette", true, nil, MarkCustomAndApply)
-  Checkbox(category, ns.db.skin, "ROTH_MINIMAP_FIRE", "fire", "Animated embers", true,
-    "Uses one bounded ticker only while the minimap, frame, and visible ember layer are active.", MarkCustomAndApply)
+  Checkbox(category, ns.db.skin, "ROTH_MINIMAP_FIRE", "fire", "Reactive embers", true,
+    "Out of combat, a static ember frame breathes through a C-level AnimationGroup. In combat, one bounded atlas ticker becomes active.", MarkCustomAndApply)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_VIGNETTE_ALPHA", "vignetteAlpha", "Vignette strength", 0.16, 0, 1, 0.05, nil, MarkCustomAndApply)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_IDLE", "fireIdleAlpha", "Idle ember strength", 0.05, 0, 1, 0.025, nil, MarkCustomAndApply)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_COMBAT", "fireCombatAlpha", "Combat ember strength", 0.26, 0, 1, 0.025, nil, MarkCustomAndApply)
-  Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_IDLE_FPS", "fireIdleFPS", "Idle ember frames per second", 2, 1, 8, 1,
-    "A low idle cadence keeps the frame alive without constant visual noise.", MarkCustomAndApply)
+  Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_IDLE_FPS", "fireIdleFPS", "Idle ember motion speed", 2, 1, 8, 1,
+    "Controls the slow alpha-breathing cycle. Idle presentation does not run a Lua atlas ticker.", MarkCustomAndApply)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_FIRE_COMBAT_FPS", "fireCombatFPS", "Combat ember frames per second", 8, 1, 20, 1, nil, MarkCustomAndApply)
   Slider(category, ns.db.skin, "ROTH_MINIMAP_OUTSET", "outset", "Frame expansion", 28, 0, 96, 1,
-    "Distance between the native map edge and the outer frame composition.", MarkCustomAndApply)
+    "Reference expansion at the default 198-pixel minimap size. It scales proportionally with Blizzard Edit Mode sizing.", MarkCustomAndApply)
 
   Checkbox(category, ns.db.ping, "ROTH_MINIMAP_PING", "enabled", "Ping notification", true,
     "Show fixed ordinary text without reading the secret MINIMAP_PING payload.")

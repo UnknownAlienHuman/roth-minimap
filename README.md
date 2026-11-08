@@ -15,19 +15,34 @@ A restrained Diablo-style minimap presentation for World of Warcraft Retail 12.1
 
 ## Visual direction
 
-Version 0.5.0 replaces the flat stack of full-strength textures with one coherent composition:
+Obsidian Ember is one composition, not a pile of equally strong effects:
 
 ```text
 soft outer shadow
   -> low ember halo
-  -> charred rim
-  -> thin animated embers
+  -> charred material rim
+  -> thin embers
   -> dark bronze frame + restrained highlight
   -> optional runes
   -> subtle inner vignette
 ```
 
-The frame is deliberately quieter out of combat. The default `Obsidian Ember` preset uses thin flames, 5% idle ember alpha, 26% combat alpha, a smaller 28-pixel expansion, and no runes.
+The default preset uses thin flames, 5% idle ember alpha, 26% combat alpha, a 28-pixel reference expansion, and no runes. Shadow, char, highlight, and pulse strengths are deliberately bounded so the map remains the focal surface.
+
+### Motion hierarchy
+
+Motion communicates state instead of running continuously at a choppy low frame rate:
+
+- **out of combat:** one selected atlas frame uses a slow repeating alpha breath in an `AnimationGroup`; no Lua atlas ticker runs;
+- **in combat:** the breath stops and one bounded 4×4 atlas ticker starts at the selected combat FPS;
+- **ping:** one short addon-owned pulse; no gameplay payload is read;
+- **hidden, disabled, or native fallback:** all owned motion stops.
+
+Binary atlas validation checks every actual 128×128 frame separately. All 16 sampled frame centers are transparent, so an additional runtime mask would add complexity and risk clipping the authored flame silhouette without solving a real defect.
+
+### Responsive geometry
+
+`Frame expansion` is authored against Blizzard's 198-pixel reference minimap. Runtime scales that expansion and shadow padding proportionally with the accessible Edit Mode minimap size. A small minimap does not acquire an oversized frame, and a large minimap does not get a thin, undersized rim.
 
 ### Presets
 
@@ -52,7 +67,7 @@ Use Blizzard **Edit Mode** to position and size the minimap. Roth Minimap does n
 
 ## Mask policy
 
-Roth Minimap writes the square mask only while that feature is selected. Starting disabled or with `Square minimap mask` off leaves an existing third-party mask untouched.
+Roth Minimap writes the native square map mask only while that feature is selected. Starting disabled or with `Square minimap mask` off leaves an existing third-party mask untouched.
 
 After Roth Minimap has applied its square mask, disabling it restores the selected-build native default. Exact restoration of an arbitrary foreign mask is not claimed because the selected public Minimap API exposes `SetMaskTexture`, but no exact `GetMaskTexture` contract.
 
@@ -63,17 +78,18 @@ While Blizzard Hybrid Minimap or indoor housing presentation is active, the addo
 - applies the known native minimap mask only when Roth square mode owns the transition;
 - restores exact decorative alpha values hidden by Roth Minimap;
 - hides only addon-owned frame regions;
+- stops addon-owned animation;
 - leaves the fixed ping notification and bounded zoom reset available.
 
 ## Performance
 
-The layered design adds static textures, not extra polling:
-
-- one thin 4×4 fire-atlas ticker;
-- idle default 2 FPS, configurable 1–8;
-- combat default 8 FPS, configurable 1–20;
-- no ticker when fire alpha is zero, the skin is hidden, or native fallback is active;
-- no `OnUpdate`, frame-tree scanning, retry loops, or recurring object creation.
+- no idle Lua atlas ticker;
+- one combat-only ticker, configurable from 1–20 FPS;
+- one C-level idle alpha animation, controlled by `Idle ember motion speed`;
+- no ticker or breath when ember alpha is zero, the frame is hidden, or native fallback is active;
+- no extra runtime effect mask;
+- no `OnUpdate`, frame-tree scanning, retry loops, or recurring region creation;
+- geometry is recalculated only on explicit settings or confirmed lifecycle signals.
 
 ## Ping
 
@@ -110,7 +126,7 @@ texlua tests/test_runtime_stubs.lua
 python3 tests/test_media.py
 ```
 
-Run these gates locally before publishing. Offline coverage includes schema-9 preset migration, Settings identity, layered texture selection, zero-alpha ticker suppression, secret ping opacity, mask ownership, native fallback, combat deferral, native wheel behavior, and exact TGA manifest/frame validation.
+Offline coverage includes schema-9 preset migration, Settings identity, texture order, idle/combat motion transitions, proportional geometry at multiple Edit Mode sizes, secret ping opacity, native mask ownership, native fallback, combat deferral, native wheel behavior, and per-frame TGA alpha metrics.
 
 Live testing is still required for actual client rendering, Edit Mode profiles, Hybrid Minimap/housing presentation, atlas alignment, taint capture, logout persistence, and `C_AddOnProfiler` measurements.
 
