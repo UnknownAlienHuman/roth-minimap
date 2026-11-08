@@ -50,6 +50,18 @@ def alpha_at(alpha: bytes, width: int, x: int, y: int) -> int:
     return alpha[y * width + x]
 
 
+def alpha_bounds(alpha: bytes, width: int, height: int, threshold: int = 8) -> tuple[int, int, int, int]:
+    points = [
+        (index % width, index // width)
+        for index, value in enumerate(alpha)
+        if value > threshold
+    ]
+    assert points, "alpha bounds: no visible pixels"
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
 def validate_mask(alpha: bytes, width: int, height: int) -> None:
     corners = (
         alpha_at(alpha, width, 0, 0),
@@ -113,9 +125,14 @@ def main() -> None:
     ]
     validate_atlas(atlas_pixels, atlas_width, atlas_height)
 
-    for relative, (_, alpha, _, _) in loaded.items():
+    for relative, (_, alpha, width, height) in loaded.items():
         visible = sum(value > 0 for value in alpha)
-        print(f"{relative}: visible_alpha={visible}/{len(alpha)}")
+        center = alpha_at(alpha, width, width // 2, height // 2)
+        bounds = alpha_bounds(alpha, width, height)
+        print(
+            f"{relative}: visible_alpha={visible}/{len(alpha)} "
+            f"center_alpha={center} bounds={bounds}"
+        )
 
     print("PASS: TGA manifest, dimensions, alpha channels, mask shape and thin fire atlas structure")
 
