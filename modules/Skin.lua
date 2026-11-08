@@ -7,6 +7,7 @@ local M = ns.skin
 local U = ns.util
 
 local frame
+local fireMask
 local shadow
 local ambientGlow
 local charEdge
@@ -314,6 +315,10 @@ local function Ensure()
   frame:SetScript("OnShow", UpdateFire)
   frame:SetScript("OnHide", OnSkinHidden)
 
+  fireMask = frame:CreateMaskTexture()
+  fireMask:SetAllPoints(frame)
+  fireMask:SetTexture(CHAR_TEXTURE)
+
   shadow = frame:CreateTexture(nil, "BACKGROUND", nil, 0)
   shadow:SetPoint("TOPLEFT", frame, "TOPLEFT", -8, 8)
   shadow:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 8, -8)
@@ -326,6 +331,7 @@ local function Ensure()
   ambientGlow:SetAllPoints(frame)
   ambientGlow:SetTexture(GLOW_TEXTURE)
   ambientGlow:SetBlendMode("ADD")
+  ambientGlow:AddMaskTexture(fireMask)
   ambientGlow:SetAlpha(0)
   ambientGlow:Hide()
 
@@ -339,6 +345,7 @@ local function Ensure()
   fireTexture:SetAllPoints(frame)
   fireTexture:SetTexture(FIRE_ATLAS)
   fireTexture:SetBlendMode("ADD")
+  fireTexture:AddMaskTexture(fireMask)
   SetFireFrame(IDLE_FIRE_FRAME)
 
   fireBreathGroup = fireTexture:CreateAnimationGroup()
@@ -370,6 +377,7 @@ local function Ensure()
   pulseTexture:SetAllPoints(frame)
   pulseTexture:SetTexture(GLOW_TEXTURE)
   pulseTexture:SetBlendMode("ADD")
+  pulseTexture:AddMaskTexture(fireMask)
   ResetPulse()
 
   pulseGroup = pulseTexture:CreateAnimationGroup()
@@ -394,6 +402,7 @@ local function Ensure()
   vignette:Hide()
 
   M.frame = frame
+  M.fireMask = fireMask
   M.fireBreathGroup = fireBreathGroup
   M.pulseGroup = pulseGroup
   return SyncDrawOrder()
