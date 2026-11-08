@@ -7,9 +7,17 @@
 - Added schema 9. Exact 0.4.6 defaults upgrade to the new default preset; detected custom appearances are preserved unchanged.
 - Replaced the normal fire atlas with the thinner atlas and restored the charred-rim texture as an intentional runtime asset.
 - Reduced new/reset idle fire alpha from `0.14` to `0.05`, combat alpha from `0.42` to `0.26`, vignette from `0.22` to `0.16`, and frame expansion from `34` to `28`.
-- Suppressed the fire ticker when the selected fire alpha is zero.
 - Reworked the ping toast into a compact, clamped, palette-aware notification that follows native Minimap draw order.
-- Expanded offline tests for preset application, automatic custom-state transitions, layered texture order, schema-9 migration, and compact toast behavior.
+
+### Second-pass design refinement
+
+- Replaced the permanently running 2 FPS idle atlas with one fixed representative frame and a slow repeating C-level alpha breath. The Lua atlas ticker now exists only in combat.
+- Made authored frame expansion and shadow padding proportional to the accessible Edit Mode minimap size, using the selected-build 198-pixel minimap as the reference.
+- Reduced shadow, charred material, frame-highlight, and event-pulse strength so the map remains visually dominant.
+- Derived ember, halo, pulse, and char tones from the active accent/frame palette instead of using one hard-coded pale-orange tint.
+- Confirmed that the thin fire atlas contains nonzero center alpha and added one addon-owned char-shaped mask to the halo, fire, and pulse layers. Decorative effects no longer tint the map center.
+- Added runtime coverage for mask attachment, idle/combat motion transitions, and proportional geometry at 99, 198, and 297 pixels.
+- Extended media diagnostics with alpha center and visible-bounds reports for each shipped TGA.
 
 ## 0.4.6 — ownership and migration closure
 
@@ -27,7 +35,7 @@
 
 ## 0.4.4 — adaptive fire cadence
 
-- Split idle and combat fire FPS.
+- Split idle and combat fire settings.
 - Updated selected Blizzard source to `12.1.5.70783`.
 
 ## 0.4.3 — callback event and native fallback
